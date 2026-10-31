@@ -1,5 +1,5 @@
 import { dedupeTags, els, hostOf, normalizeUrl, toast } from './dom.js';
-import { state, local, mergeByCode, normalizeAvatars, normalizeItems, normalizeParserRule } from './store.js';
+import { state, local, mergeByCode, normalizeActressMeta, normalizeAvatars, normalizeItems, normalizeParserRule } from './store.js';
 import { normalizeRule } from '../shared/url-rules.js';
 import { render } from './views.js';
 
@@ -12,6 +12,7 @@ export function exportBackup() {
     settings: { whitelist: state.rules },
     parserRules: state.parserRules,
     actressAvatars: state.actressAvatars,
+    actressMeta: state.actressMeta,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
@@ -85,8 +86,11 @@ export async function importBackup(file) {
   const avatars = data && data.actressAvatars && typeof data.actressAvatars === 'object'
     ? data.actressAvatars
     : {};
+  const actressMeta = data && data.actressMeta && typeof data.actressMeta === 'object'
+    ? data.actressMeta
+    : {};
 
-  if (!Array.isArray(incoming) && !rules.length && !parserRules.length && !Object.keys(avatars).length) {
+  if (!Array.isArray(incoming) && !rules.length && !parserRules.length && !Object.keys(avatars).length && !Object.keys(actressMeta).length) {
     toast('导入失败：文件里没有可导入的数据', { tone: 'error' });
     return;
   }
@@ -96,6 +100,7 @@ export async function importBackup(file) {
     rules,
     parserRules,
     avatars,
+    actressMeta,
   };
   els.importSummary.textContent =
     `备份包含 ${state.pendingImport.items.length} 条收藏、${rules.length} 条范围规则、` +
@@ -152,6 +157,7 @@ async function mergeFromBackup(pending) {
   }
 
   const avatars = normalizeAvatars({ ...state.actressAvatars, ...pending.avatars });
+  const actressMeta = normalizeActressMeta({ ...state.actressMeta, ...pending.actressMeta });
   const finalItems = mergeByCode(normalizeItems(items)).items;
 
   try {
@@ -161,6 +167,7 @@ async function mergeFromBackup(pending) {
       settings: { ...(stored.settings || {}), whitelist },
       parserRules,
       actressAvatars: avatars,
+      actressMeta,
     });
   } catch (error) {
     toast('导入失败：' + (error && error.message ? error.message : '写入存储失败'), { tone: 'error' });
@@ -171,6 +178,7 @@ async function mergeFromBackup(pending) {
   state.rules = whitelist;
   state.parserRules = parserRules;
   state.actressAvatars = avatars;
+  state.actressMeta = actressMeta;
   render();
 
   const parts = [`${added} 条收藏`];
@@ -185,6 +193,7 @@ async function replaceFromBackup(pending) {
   const rules = pending.rules.map(normalizeRule).filter(Boolean);
   const parserRules = pending.parserRules.map(normalizeParserRule).filter(Boolean);
   const avatars = normalizeAvatars(pending.avatars);
+  const actressMeta = normalizeActressMeta(pending.actressMeta);
 
   try {
     await local.set({
@@ -192,6 +201,7 @@ async function replaceFromBackup(pending) {
       settings: { whitelist: rules },
       parserRules,
       actressAvatars: avatars,
+      actressMeta,
     });
   } catch (error) {
     toast('恢复失败：' + (error && error.message ? error.message : '写入存储失败'), { tone: 'error' });
@@ -202,6 +212,7 @@ async function replaceFromBackup(pending) {
   state.rules = rules;
   state.parserRules = parserRules;
   state.actressAvatars = avatars;
+  state.actressMeta = actressMeta;
   render();
   toast(`已用备份覆盖：${items.length} 条收藏、${rules.length} 条范围规则、${parserRules.length} 条解析规则`);
 }

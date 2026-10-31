@@ -1,5 +1,5 @@
 import { dedupeTags, els, hostOf, normalizeUrl, scrollMainTop, toast } from './dom.js';
-import { local, normalizeAvatars, normalizeItems, readParserRules, readRules, session, state, upsert } from './store.js';
+import { local, normalizeActressMeta, normalizeAvatars, normalizeItems, readParserRules, readRules, session, state, upsert } from './store.js';
 import { jumpToPage, render, renderMain, renderRangeNotice, setView } from './views.js';
 import { clearUrlError, collectMeta, flushTagInput, renderTagEditor, showUrlError } from './editor.js';
 import { addRule, clearRuleError, importParserRules, openRulesDialog, openSettings, renderParserRules, renderRuleList } from './dialogs.js';
@@ -273,6 +273,10 @@ export function bindEvents() {
     }
     if (areaName === 'local' && changes.actressAvatars) {
       state.actressAvatars = normalizeAvatars(changes.actressAvatars.newValue);
+      if (state.view === 'actresses') render();
+    }
+    if (areaName === 'local' && changes.actressMeta) {
+      state.actressMeta = normalizeActressMeta(changes.actressMeta.newValue);
       if (state.view === 'actresses') render();
     }
     if (areaName === 'local' && changes.settings) {

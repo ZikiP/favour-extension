@@ -130,6 +130,7 @@ function backupPayload() {
     settings: { whitelist: state.rules },
     parserRules: state.parserRules,
     actressAvatars: state.actressAvatars,
+    actressMeta: state.actressMeta,
   };
 }
 

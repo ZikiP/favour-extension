@@ -9,6 +9,7 @@ export const state = {
   rules: [],
   parserRules: [],
   actressAvatars: {},
+  actressMeta: {},
   lastTab: null,
   query: '',
   view: 'library', // library | actresses | favorites
@@ -30,12 +31,13 @@ export const state = {
 };
 
 export async function refresh() {
-  const data = await local.get(['items', 'settings', 'parserRules', 'actressAvatars']);
+  const data = await local.get(['items', 'settings', 'parserRules', 'actressAvatars', 'actressMeta']);
   const { items, merged } = mergeByCode(normalizeItems(data.items));
   state.items = items;
   state.rules = readRules(data.settings);
   state.parserRules = readParserRules(data.parserRules);
   state.actressAvatars = normalizeAvatars(data.actressAvatars);
+  state.actressMeta = normalizeActressMeta(data.actressMeta);
   if (merged) {
     try {
       await local.set({ items });
@@ -65,6 +67,21 @@ export function normalizeAvatars(raw) {
     avatars[key] = url;
   }
   return avatars;
+}
+
+export function normalizeActressMeta(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const meta = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const key = baseActressName(name).toLowerCase();
+    if (!key || !value || typeof value !== 'object') continue;
+    const favorite = value.favorite === true;
+    const parsed = Math.trunc(Number(value.order));
+    const order = Number.isFinite(parsed) ? Math.max(0, Math.min(9999, parsed)) : 0;
+    if (!favorite && !order) continue;
+    meta[key] = { favorite, order };
+  }
+  return meta;
 }
 
 export async function keep(items) {

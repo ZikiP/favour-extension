@@ -1,11 +1,12 @@
 import { els, el, ICON, iconButton, fuzzyMatch, hostOf, hueOf, initialOf, matchesQuery } from './dom.js';
 import { state } from './store.js';
 import { actressStats, actressLabel, sortItems, tagLabel, visibleItems } from './selectors.js';
-import { paginate, renderPager } from './pager.js';
+import { ACTRESS_PAGE_SIZE, paginate, renderPager } from './pager.js';
 import { openEditor } from './editor.js';
 import { onAddCurrent } from './actions.js';
 import { openSettings } from './dialogs.js';
 import { copyUrl, openItem, openRelocate, removeItem, searchUrlFor, toggleFavoriteItem, toggleWatched } from './items.js';
+import { setActressOrder, toggleActressFavorite } from './actresses.js';
 import { toggleSelected } from './list-tools.js';
 import { render, renderMain, openActress, setView } from './views.js';
 
@@ -54,20 +55,20 @@ export function renderFavorites() {
 
   els.empty.hidden = items.length > 0;
   if (!items.length) {
-    renderPager({ total: 0, pages: 1, page: 1 });
+    renderPager({ total: 0, pages: 1, page: 1 }, '件');
     renderFavoritesEmpty();
     return;
   }
 
   for (const item of pageData.items) els.list.append(renderCard(item));
-  renderPager(pageData);
+  renderPager(pageData, '件');
 }
 
 export function renderActressView() {
   const stats = actressStats();
   const filtered = stats.filter((stat) => fuzzyMatch(stat.name, state.query));
+  const pageData = paginate(filtered, ACTRESS_PAGE_SIZE);
 
-  els.pager.hidden = true;
   els.list.className = 'list list--actresses';
   els.list.replaceChildren();
   els.listTitle.textContent = '演员';
@@ -76,18 +77,24 @@ export function renderActressView() {
 
   els.empty.hidden = filtered.length > 0;
   if (!filtered.length) {
+    renderPager({ total: 0, pages: 1, page: 1 }, '位');
     renderActressEmpty(stats);
     return;
   }
 
-  for (const stat of filtered) els.list.append(renderActressRow(stat));
+  for (const stat of pageData.items) els.list.append(renderActressCard(stat));
+  renderPager(pageData, '位');
 }
 
-function renderActressRow(stat) {
-  const row = el('div', 'actress-row');
-  row.tabIndex = 0;
-  row.setAttribute('role', 'button');
-  row.setAttribute('aria-label', `查看 ${stat.name} 的作品`);
+function renderActressCard(stat) {
+  const card = el('article', 'actress-card');
+  card.dataset.key = stat.key;
+
+  const hit = el('button', 'actress-hit');
+  hit.type = 'button';
+  hit.setAttribute('aria-label', `查看 ${stat.name} 的作品`);
+  hit.addEventListener('click', () => openActress(stat.key));
+  card.append(hit);
 
   const avatar = el('span', 'actress-avatar');
   avatar.style.setProperty('--h', hueOf(stat.key));
@@ -108,21 +115,42 @@ function renderActressRow(stat) {
     avatar.textContent = initial;
   }
 
-  const main = el('div', 'actress-main');
-  main.append(
+  const favorite = el('button', 'actress-fav' + (stat.favorite ? ' is-fav' : ''));
+  favorite.type = 'button';
+  favorite.innerHTML = stat.favorite ? ICON.heartOn : ICON.heart;
+  favorite.title = stat.favorite ? '取消喜爱' : '设为喜爱';
+  favorite.setAttribute('aria-label', stat.favorite ? `取消喜爱 ${stat.name}` : `喜爱 ${stat.name}`);
+  favorite.setAttribute('aria-pressed', stat.favorite ? 'true' : 'false');
+  favorite.addEventListener('click', () => toggleActressFavorite(stat.key));
+
+  const body = el('div', 'actress-body');
+  body.append(
     el('span', 'actress-name', stat.name),
     el('span', 'actress-count', `${stat.count} 部作品`),
   );
 
-  row.append(avatar, main);
-  row.addEventListener('click', () => openActress(stat.key));
-  row.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
+  const order = el('label', 'actress-order');
+  order.append(el('span', null, '排序'));
+  const input = el('input');
+  input.type = 'number';
+  input.min = '0';
+  input.step = '1';
+  input.inputMode = 'numeric';
+  input.placeholder = '0';
+  input.value = stat.order ? String(stat.order) : '';
+  input.title = '排序值，数值越大越靠前';
+  input.setAttribute('aria-label', `${stat.name} 的排序值`);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
       event.preventDefault();
-      openActress(stat.key);
+      input.blur();
     }
   });
-  return row;
+  input.addEventListener('change', () => setActressOrder(stat.key, input.value));
+  order.append(input);
+
+  card.append(avatar, favorite, body, order);
+  return card;
 }
 
 function renderCard(item) {

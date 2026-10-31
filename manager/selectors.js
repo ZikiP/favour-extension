@@ -18,12 +18,26 @@ export function actressStats() {
       const name = baseActressName(raw);
       const key = name.toLowerCase();
       if (!key) continue;
-      if (!map.has(key)) map.set(key, { key, name, count: 0, avatar: state.actressAvatars[key] || '' });
+      if (!map.has(key)) {
+        const meta = state.actressMeta[key] || {};
+        map.set(key, {
+          key,
+          name,
+          count: 0,
+          avatar: state.actressAvatars[key] || '',
+          favorite: meta.favorite === true,
+          order: Number(meta.order) || 0,
+        });
+      }
       map.get(key).count += 1;
     }
   }
   return [...map.values()].sort(
-    (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'),
+    (a, b) =>
+      Number(b.favorite) - Number(a.favorite) ||
+      b.order - a.order ||
+      b.count - a.count ||
+      a.name.localeCompare(b.name, 'zh-Hans-CN'),
   );
 }
 

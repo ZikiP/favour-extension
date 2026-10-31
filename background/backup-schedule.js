@@ -28,7 +28,7 @@ async function runBackupIfDue() {
 }
 
 async function runBackup(previous) {
-  const data = await chrome.storage.local.get(['items', 'settings', 'parserRules', 'actressAvatars']);
+  const data = await chrome.storage.local.get(['items', 'settings', 'parserRules', 'actressAvatars', 'actressMeta']);
   const payload = {
     app: 'favour',
     schemaVersion: 2,
@@ -39,6 +39,7 @@ async function runBackup(previous) {
     },
     parserRules: Array.isArray(data.parserRules) ? data.parserRules : [],
     actressAvatars: data.actressAvatars && typeof data.actressAvatars === 'object' ? data.actressAvatars : {},
+    actressMeta: data.actressMeta && typeof data.actressMeta === 'object' ? data.actressMeta : {},
   };
 
   const json = JSON.stringify(payload, null, 2);
