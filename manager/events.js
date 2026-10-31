@@ -5,6 +5,7 @@ import { clearUrlError, collectMeta, flushTagInput, renderTagEditor, showUrlErro
 import { addRule, clearRuleError, importParserRules, openRulesDialog, openSettings, renderParserRules, renderRuleList } from './dialogs.js';
 import { openSyncDialog, renderSyncStatus, runPhoneSync, syncUrlValue } from './sync.js';
 import { applyImport, exportBackup, importBackup } from './backup.js';
+import { backupNow, chooseBackupFolder, clearBackupFolder, openBackupDialog } from './backup-settings.js';
 import { handleBlocked, onAddCurrent } from './actions.js';
 import { openRandom } from './items.js';
 import { openTagsDialog } from './tags.js';
@@ -246,6 +247,16 @@ export function bindEvents() {
   });
 
   els.exportBtn.addEventListener('click', exportBackup);
+
+  els.backupBtn.addEventListener('click', openBackupDialog);
+  els.chooseFolderBtn.addEventListener('click', chooseBackupFolder);
+  els.clearFolderBtn.addEventListener('click', clearBackupFolder);
+  els.backupNow.addEventListener('click', backupNow);
+  els.backupDone.addEventListener('click', () => els.backupDialog.close());
+  els.backupForm.addEventListener('submit', (event) => event.preventDefault());
+  els.backupDialog.addEventListener('click', (event) => {
+    if (event.target === els.backupDialog) els.backupDialog.close();
+  });
 
   els.importBtn.addEventListener('click', () => els.importFile.click());
 

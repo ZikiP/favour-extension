@@ -57,6 +57,8 @@
         <div class="foot-links">
           <button type="button" class="linkish" id="exportBtn">导出备份</button>
           <span class="foot-sep">·</span>
+          <button type="button" class="linkish" id="backupBtn">备份设置</button>
+          <span class="foot-sep">·</span>
           <button type="button" class="linkish" id="importBtn">导入</button>
           <span class="foot-sep">·</span>
           <button type="button" class="linkish" id="rulesBtn">解析规则</button>
@@ -251,6 +253,31 @@
         <button type="button" class="btn btn-ghost" id="importCancel">取消</button>
         <button type="button" class="btn btn-ghost" id="importReplace">覆盖恢复</button>
         <button type="button" class="btn btn-primary" id="importMerge">合并导入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="backupDialog" aria-labelledby="backupTitle">
+    <form id="backupForm" novalidate>
+      <h2 id="backupTitle">备份设置</h2>
+      <p class="dialog-hint">定时备份每天自动执行一次。可以保存到系统下载目录，或指定一个文件夹（例如 OneDrive 里的目录）。</p>
+
+      <div class="field">
+        <span>自动备份文件夹</span>
+        <div class="backup-folder-row">
+          <span class="backup-folder-name" id="backupFolderName"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="chooseFolderBtn">选择文件夹…</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="clearFolderBtn" hidden>清除</button>
+        </div>
+      </div>
+      <p class="field-error" id="backupFolderError" hidden></p>
+
+      <p class="backup-status" id="backupStatus"></p>
+      <p class="rule-tip">选择文件夹时如出现权限询问请允许，并尽量勾选“每次访问都允许”；否则定时备份会退回下载目录。</p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="backupNow">立即备份</button>
+        <button type="button" class="btn btn-primary" id="backupDone">完成</button>
       </div>
     </form>
   </dialog>

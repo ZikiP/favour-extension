@@ -1,5 +1,6 @@
 import { isAllowed } from './shared/url-rules.js';
 import { enrichActressAvatars } from './background/actress-avatars.js';
+import { setupBackupSchedule } from './background/backup-schedule.js';
 
 const MANAGER_PATH = 'manager/manager.html';
 const NOTIFICATION_ID = 'favour-saved';
@@ -364,6 +365,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 setupMenus();
+setupBackupSchedule();
 chrome.runtime.onStartup.addListener(setupMenus);
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   setupMenus();
