@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Favour · 我的收藏</title>
+  <link rel="icon" href="../icons/icon48.png">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/cards.css">
+  <link rel="stylesheet" href="styles/views.css">
+  <link rel="stylesheet" href="styles/dialogs.css">
+  <link rel="stylesheet" href="styles/toast.css">
+  <link rel="stylesheet" href="styles/responsive.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3.75h10A1.25 1.25 0 0 1 18.25 5v15.3l-6.25-3.9-6.25 3.9V5A1.25 1.25 0 0 1 7 3.75Z"/></svg>
+      </span>
+      <div class="brand-text">
+        <strong>Favour</strong>
+        <span>本地网址收藏</span>
+      </div>
+    </div>
+
+    <label class="search">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.2-3.2"></path>
+      </svg>
+      <input id="search" type="search" placeholder="搜索标题、网址或标签…" autocomplete="off" spellcheck="false" aria-label="搜索收藏">
+      <kbd>Ctrl K</kbd>
+    </label>
+
+    <div class="top-actions">
+      <button id="randomBtn" class="top-icon" type="button" title="随机打开一个收藏" aria-label="随机打开一个收藏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>
+      </button>
+      <button id="settingsBtn" class="top-icon" type="button" title="收藏范围设置" aria-label="收藏范围设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10.05 3V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 21 10.05H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03Z"/></svg>
+      </button>
+      <button id="addCurrent" class="btn btn-primary" type="button" title="把刚刚浏览的页面加入收藏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        收藏当前页
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="side-nav" id="sideNav" aria-label="收藏分类"></nav>
+      <div class="sidebar-tags" id="sidebarTags"></div>
+      <div class="sidebar-foot">
+        <div class="foot-links">
+          <button type="button" class="linkish" id="exportBtn">导出备份</button>
+          <span class="foot-sep">·</span>
+          <button type="button" class="linkish" id="importBtn">导入</button>
+          <span class="foot-sep">·</span>
+          <button type="button" class="linkish" id="rulesBtn">解析规则</button>
+          <span class="foot-sep">·</span>
+          <button type="button" class="linkish" id="tagsBtn">标签管理</button>
+          <span class="foot-sep">·</span>
+          <button type="button" class="linkish" id="syncBtn">手机同步</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden>
+        </div>
+        <p class="local-note">数据仅保存在此浏览器本地</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="content">
+        <div class="view-tabs" role="tablist" aria-label="视图">
+          <button type="button" class="view-tab is-active" id="tabLibrary" role="tab" aria-selected="true">收藏<span class="view-tab-count" id="tabLibraryCount"></span></button>
+          <button type="button" class="view-tab" id="tabActresses" role="tab" aria-selected="false">演员<span class="view-tab-count" id="tabActressesCount"></span></button>
+          <button type="button" class="view-tab" id="tabFavorites" role="tab" aria-selected="false">最爱<span class="view-tab-count" id="tabFavoritesCount"></span></button>
+        </div>
+
+        <div class="notice" id="rangeNotice" hidden>
+          <span class="notice-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          </span>
+          <div class="notice-text">
+            <strong>收藏范围为空</strong>
+            <span>添加允许收藏的网站后，才能收藏新网址。</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="noticeConfig" type="button">配置收藏范围</button>
+        </div>
+        <div class="list-head">
+          <h1 id="listTitle">全部收藏</h1>
+          <span class="count" id="listCount"></span>
+          <button type="button" class="filter-clear" id="clearActress" hidden aria-label="清除演员筛选" title="清除演员筛选">×</button>
+          <div class="list-tools">
+            <button type="button" class="btn btn-ghost btn-sm" id="sortToggle" title="切换排序方式">收录时间</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="selectToggle">选择</button>
+          </div>
+        </div>
+        <section class="list" id="list"></section>
+        <nav class="pager" id="pager" hidden aria-label="分页">
+          <button type="button" class="btn btn-ghost" id="pagerPrev">上一页</button>
+          <span class="pager-info" id="pagerInfo"></span>
+          <button type="button" class="btn btn-ghost" id="pagerNext">下一页</button>
+          <span class="pager-jump">
+            <input id="pagerJump" type="number" min="1" step="1" inputmode="numeric" aria-label="跳转到页码" placeholder="页码">
+            <button type="button" class="btn btn-ghost" id="pagerGo">跳转</button>
+          </span>
+        </nav>
+        <div class="empty" id="empty" hidden></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="selection-bar" id="selectionBar" hidden>
+    <span class="selection-count" id="selectionCount">未选择</span>
+    <button type="button" class="btn btn-ghost btn-sm" id="selectionAll">全选本页</button>
+    <button type="button" class="btn btn-primary btn-sm" id="selectionDelete" disabled>删除选中</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="selectionCancel">取消</button>
+  </div>
+
+  <dialog class="dialog" id="editor" aria-labelledby="dialogTitle">
+    <form id="editorForm" novalidate>
+      <h2 id="dialogTitle">添加收藏</h2>
+      <p class="dialog-hint" id="dialogHint" hidden></p>
+
+      <label class="field">
+        <span>网址</span>
+        <input id="fUrl" type="text" inputmode="url" placeholder="https://example.com" autocomplete="off" spellcheck="false">
+      </label>
+      <p class="field-error" id="urlError" hidden></p>
+
+      <label class="field">
+        <span>标题</span>
+        <input id="fTitle" type="text" placeholder="留空则使用域名" autocomplete="off">
+      </label>
+
+      <div class="field">
+        <span>标签</span>
+        <div class="tag-editor" id="tagEditor">
+          <span class="tag-chips" id="tagChips"></span>
+          <input id="fTag" type="text" placeholder="输入后按 Enter 添加" autocomplete="off">
+        </div>
+        <div class="tag-suggest" id="tagSuggest" hidden></div>
+      </div>
+
+      <div class="field">
+        <span>作品信息</span>
+        <div class="meta-grid" id="metaList"></div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="cancelBtn">取消</button>
+        <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="settings" aria-labelledby="settingsTitle">
+    <form id="settingsForm" novalidate>
+      <h2 id="settingsTitle">收藏范围</h2>
+      <p class="dialog-hint">仅允许收藏下列网址。域名规则会同时匹配它的所有子域。</p>
+
+      <div class="rule-list" id="ruleList"></div>
+
+      <div class="rule-add">
+        <input id="ruleInput" type="text" placeholder="example.com 或 example.com/docs" autocomplete="off" spellcheck="false" aria-label="添加收藏范围规则">
+        <button type="submit" class="btn btn-ghost">添加</button>
+      </div>
+      <p class="field-error" id="ruleError" hidden></p>
+      <p class="rule-tip">
+        支持完整网址、<code>*.example.com</code>（子域）、<code>example.com/docs</code>（路径前缀）、<code>*</code>（允许全部）。
+      </p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="settingsDone">完成</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="rulesDialog" aria-labelledby="rulesTitle">
+    <form id="rulesForm" novalidate>
+      <h2 id="rulesTitle">解析规则</h2>
+      <p class="dialog-hint">扩展不内置站点规则。导入 JSON 规则后，在允许的网站上点工具栏图标即可自动提取字段。</p>
+
+      <div class="rule-list" id="parserRuleList"></div>
+
+      <div class="rule-add">
+        <button type="button" class="btn btn-ghost" id="importRuleBtn">导入规则 JSON…</button>
+        <input id="importRuleFile" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p class="field-error" id="parserRuleError" hidden></p>
+      <p class="rule-tip">
+        规则按 <code>matches</code> 匹配域名（含子域），字段支持 <code>label</code> / <code>meta</code> / <code>css</code> / <code>url</code> 等来源；可选 <code>searchUrl</code> 模板（<code>{code}</code> / <code>{title}</code>）用于重新定位片源。
+      </p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="rulesDone">完成</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="syncDialog" aria-labelledby="syncTitle">
+    <form id="syncForm" novalidate>
+      <h2 id="syncTitle">手机同步</h2>
+      <p class="dialog-hint">把收藏推送到本机的小服务，手机通过 Tailscale 打开即可浏览。服务地址和令牌来自 favour-sync 的部署输出。</p>
+
+      <label class="field">
+        <span>本机服务地址</span>
+        <input id="syncUrl" type="text" placeholder="http://127.0.0.1:8789" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>手机访问地址</span>
+        <input id="syncPublicUrl" type="text" placeholder="https://…/favour/" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>访问令牌</span>
+        <input id="syncToken" type="password" placeholder="data/token.txt 里的字符串" autocomplete="off" spellcheck="false">
+      </label>
+
+      <p class="sync-status" id="syncStatus"></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="syncOpen">打开手机页</button>
+        <button type="button" class="btn btn-ghost" id="syncNow">立即同步</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="tagsDialog" aria-labelledby="tagsTitle">
+    <form id="tagsForm" novalidate>
+      <h2 id="tagsTitle">管理标签</h2>
+      <p class="dialog-hint">改名会同步到所有收藏；改成已有标签名即可合并。</p>
+
+      <div class="rule-list" id="tagManageList"></div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="tagsDone">完成</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="importDialog" aria-labelledby="importTitle">
+    <form id="importForm" novalidate>
+      <h2 id="importTitle">导入备份</h2>
+      <p class="dialog-hint" id="importSummary"></p>
+      <p class="rule-tip">「合并导入」只补充新条目；「覆盖恢复」会清空现有数据并用备份替换。</p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="importCancel">取消</button>
+        <button type="button" class="btn btn-ghost" id="importReplace">覆盖恢复</button>
+        <button type="button" class="btn btn-primary" id="importMerge">合并导入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="manager.js"></script>
+</body>
+</html>

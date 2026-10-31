@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Favour — 网址收藏",
+  "version": "1.0.0",
+  "description": "一键收藏当前网页，用标签整理、按关键词搜索。数据只保存在本机浏览器。",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "unlimitedStorage", "tabs", "favicon", "scripting", "activeTab", "notifications", "contextMenus"],
+  "optional_host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://missav.live/*", "*://*.missav.live/*"],
+      "js": ["shared/missav-ad-guard.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_title": "Favour · 收藏当前页",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_ui": {
+    "page": "manager/manager.html",
+    "open_in_tab": true
+  }
+}
