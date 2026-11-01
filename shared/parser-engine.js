@@ -19,7 +19,16 @@
     let text = norm(value);
     if (!text) return '';
 
-    if (source.regex) {
+    if (source.replace != null && source.regex) {
+      let pattern;
+      try {
+        pattern = new RegExp(source.regex);
+      } catch {
+        return '';
+      }
+      if (!pattern.test(text)) return '';
+      text = norm(text.replace(pattern, source.replace));
+    } else if (source.regex) {
       let pattern;
       try {
         pattern = new RegExp(source.regex);
@@ -124,6 +133,7 @@
     else if (source.type === 'css') raw = fromSelector(source, context.documentRef);
     else if (source.type === 'url') raw = context.url;
     else if (source.type === 'title') raw = context.documentRef.title;
+    else if (source.type === 'derive') raw = context.resolved[source.from] || '';
     else if (source.type === 'constant') raw = source.value || '';
 
     return finalize(raw, source);
@@ -136,6 +146,7 @@
     const context = {
       documentRef,
       url: String(url || (documentRef.location && documentRef.location.href) || ''),
+      resolved: {},
     };
     const extras = [];
     let title = '';
@@ -149,6 +160,7 @@
         if (value) break;
       }
       if (!value) continue;
+      context.resolved[field.key] = value;
       if (field.key === 'title') {
         title = value;
         continue;

@@ -1,6 +1,5 @@
-import { els, el, ICON, dedupeTags, hueOf, toast } from './dom.js';
+import { els, el } from './dom.js';
 import { state } from './store.js';
-import { tagStats } from './selectors.js';
 
 const META_FIELDS = [
   ['code', '番号'],
@@ -8,6 +7,10 @@ const META_FIELDS = [
   ['releaseDate', '发行日期'],
   ['publisher', '发行商'],
   ['director', '导演'],
+  ['series', '系列'],
+  ['genres', '类型'],
+  ['label', '厂牌'],
+  ['runtime', '时长'],
 ];
 
 export function openEditor({ item = null, prefill = null, parsed = null } = {}) {
@@ -16,7 +19,6 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
   state.editing = item || null;
   let url = '';
   let title = '';
-  let tags = [];
   let extras = [];
   let cover = '';
   let source = null;
@@ -24,7 +26,6 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
   if (item) {
     url = item.url;
     title = item.title || '';
-    tags = [...item.tags];
     extras = [...item.extras];
     cover = item.cover;
     source = item.source;
@@ -35,7 +36,6 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
     if (existing) {
       state.editing = existing;
       title = existing.title || title;
-      tags = [...existing.tags];
       extras = [...existing.extras];
       cover = existing.cover;
       source = existing.source;
@@ -49,7 +49,6 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
     if (!state.editing && parsed.title) title = parsed.title;
   }
 
-  state.draftTags = dedupeTags(tags);
   state.draftExtras = Array.isArray(extras) ? extras : [];
   state.draftCover = cover || '';
   state.draftSource = source || null;
@@ -58,9 +57,7 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
   els.dialogHint.hidden = !state.editing;
   els.fUrl.value = url;
   els.fTitle.value = title;
-  els.fTag.value = '';
   clearUrlError();
-  renderTagEditor();
   renderMetaEditor(state.draftExtras, state.draftCover);
   els.editor.showModal();
 
@@ -72,71 +69,6 @@ export function openEditor({ item = null, prefill = null, parsed = null } = {}) 
       els.fUrl.focus();
     }
   });
-}
-
-export function renderTagEditor() {
-  els.tagChips.replaceChildren();
-  for (const tag of state.draftTags) {
-    const chip = el('span', 'chip chip--draft');
-    chip.style.setProperty('--h', hueOf(tag.toLowerCase()));
-    chip.append(el('span', 'chip-label', tag));
-
-    const remove = el('button', 'chip-x');
-    remove.type = 'button';
-    remove.setAttribute('aria-label', `移除标签 ${tag}`);
-    remove.innerHTML = ICON.x;
-    remove.addEventListener('click', () => {
-      state.draftTags = state.draftTags.filter((value) => value !== tag);
-      renderTagEditor();
-      els.fTag.focus();
-    });
-    chip.append(remove);
-    els.tagChips.append(chip);
-  }
-
-  const used = new Set(state.draftTags.map((tag) => tag.toLowerCase()));
-  const suggestions = tagStats()
-    .filter((stat) => !used.has(stat.label.toLowerCase()))
-    .slice(0, 12);
-
-  els.tagSuggest.replaceChildren();
-  if (!suggestions.length) {
-    els.tagSuggest.hidden = true;
-    return;
-  }
-
-  els.tagSuggest.hidden = false;
-  els.tagSuggest.append(el('span', 'suggest-label', '常用标签'));
-  for (const stat of suggestions) {
-    const chip = el('button', 'chip chip--suggest', stat.label);
-    chip.type = 'button';
-    chip.style.setProperty('--h', hueOf(stat.label.toLowerCase()));
-    chip.addEventListener('click', () => {
-      addDraftTag(stat.label);
-      renderTagEditor();
-      els.fTag.focus();
-    });
-    els.tagSuggest.append(chip);
-  }
-}
-
-function addDraftTag(raw) {
-  const tag = String(raw || '').trim().replace(/\s+/g, ' ');
-  if (!tag) return;
-  if (tag.length > 30) {
-    toast('标签最多 30 个字符', { tone: 'error' });
-    return;
-  }
-  if (state.draftTags.some((value) => value.toLowerCase() === tag.toLowerCase())) return;
-  state.draftTags.push(tag);
-}
-
-export function flushTagInput() {
-  const raw = els.fTag.value;
-  if (!raw.trim()) return;
-  for (const part of raw.split(/[,，;；]/)) addDraftTag(part);
-  els.fTag.value = '';
-  renderTagEditor();
 }
 
 function metaInput(key, label, value, wide = false) {

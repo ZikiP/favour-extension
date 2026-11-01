@@ -1,8 +1,10 @@
 import { els, el, ICON, iconButton, fuzzyMatch, hostOf, hueOf, initialOf, matchesQuery } from './dom.js';
 import { state } from './store.js';
-import { actressStats, actressLabel, sortItems, tagLabel, visibleItems } from './selectors.js';
+import { actressStats, actressLabel, genreLabel, seriesLabel, sortItems, visibleItems } from './selectors.js';
+import { extraValue, genresOf } from './meta.js';
 import { ACTRESS_PAGE_SIZE, paginate, renderPager } from './pager.js';
 import { openEditor } from './editor.js';
+import { openDetail } from './detail.js';
 import { onAddCurrent } from './actions.js';
 import { openSettings } from './dialogs.js';
 import { copyUrl, openItem, openRelocate, removeItem, searchUrlFor, toggleFavoriteItem, toggleWatched } from './items.js';
@@ -20,11 +22,11 @@ export function renderLibrary() {
     ? '未看'
     : state.actress
       ? `演员 · ${actressLabel(state.actress)}`
-      : state.tag === null
-        ? '全部收藏'
-        : state.tag === ''
-          ? '未分类'
-          : tagLabel(state.tag);
+      : state.genre
+        ? `类型 · ${genreLabel(state.genre)}`
+        : state.series
+          ? `系列 · ${seriesLabel(state.series)}`
+          : '全部收藏';
   els.listTitle.textContent = state.query.trim() ? '搜索结果' : label;
   els.listCount.textContent = `${items.length} 条`;
   els.clearActress.hidden = !state.actress;
@@ -219,14 +221,24 @@ function renderCard(item) {
 
   const body = el('div', 'card-body');
 
-  if (code && code.value) {
+  const runtime = extraValue(item, 'runtime');
+  if ((code && code.value) || runtime) {
     const codeRow = el('div', 'card-code-row');
-    codeRow.append(el('span', 'card-code', code.value));
+    if (code && code.value) codeRow.append(el('span', 'card-code', code.value));
+    if (runtime) codeRow.append(el('span', 'card-runtime', runtime));
     body.append(codeRow);
   }
 
   if (actress && actress.value) {
     body.append(el('div', 'card-actress', actress.value));
+  }
+
+  const genres = genresOf(item);
+  if (genres.length) {
+    const genreRow = el('div', 'card-genres');
+    for (const genre of genres.slice(0, 3)) genreRow.append(el('span', 'genre-chip', genre));
+    if (genres.length > 3) genreRow.append(el('span', 'genre-more', `+${genres.length - 3}`));
+    body.append(genreRow);
   }
 
   const title = el('div', 'card-title', item.title || hostOf(item.url));
@@ -241,6 +253,7 @@ function renderCard(item) {
     iconButton('复制链接', ICON.copy, () => copyUrl(item)),
     iconButton(item.watched ? '标记为未看' : '标记为已看', ICON.eye, () => toggleWatched(item), item.watched ? 'is-on' : ''),
     iconButton('编辑', ICON.pencil, () => openEditor({ item })),
+    iconButton('详情', ICON.info, () => openDetail(item)),
     iconButton('删除', ICON.trash, () => removeItem(item), 'is-danger'),
   );
 
@@ -278,9 +291,10 @@ function renderEmpty() {
   reset.addEventListener('click', () => {
     els.search.value = '';
     state.query = '';
-    state.tag = null;
     state.actress = null;
     state.watched = false;
+    state.genre = null;
+    state.series = null;
     render();
     els.search.focus();
   });

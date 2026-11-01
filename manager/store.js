@@ -15,16 +15,16 @@ export const state = {
   view: 'library', // library | actresses | favorites
   actress: null, // 小写演员名，用于收藏视图筛选
   watched: false, // 只看未看
-  sort: 'created', // created | opened
+  genre: null, // 小写类型名
+  series: null, // 小写系列名
+  sort: 'created', // created | opened | runtime
   page: 1,
   pages: 1,
-  tag: null, // null = 全部, '' = 未分类, 其他 = 小写标签名
   selecting: false,
   selected: new Set(),
   editing: null,
   lastRandomId: null,
   pendingImport: null,
-  draftTags: [],
   draftExtras: [],
   draftCover: '',
   draftSource: null,

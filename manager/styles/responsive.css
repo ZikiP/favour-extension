@@ -38,8 +38,7 @@
     gap: 6px;
   }
 
-  .side-heading,
-  .side-empty {
+  .side-heading {
     display: none;
   }
 

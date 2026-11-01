@@ -9,9 +9,11 @@
   <link rel="stylesheet" href="styles/base.css">
   <link rel="stylesheet" href="styles/layout.css">
   <link rel="stylesheet" href="styles/cards.css">
+  <link rel="stylesheet" href="styles/card-meta.css">
   <link rel="stylesheet" href="styles/views.css">
   <link rel="stylesheet" href="styles/actress-cards.css">
   <link rel="stylesheet" href="styles/dialogs.css">
+  <link rel="stylesheet" href="styles/detail.css">
   <link rel="stylesheet" href="styles/toast.css">
   <link rel="stylesheet" href="styles/responsive.css">
 </head>
@@ -32,7 +34,7 @@
         <circle cx="11" cy="11" r="7"></circle>
         <path d="m20 20-3.2-3.2"></path>
       </svg>
-      <input id="search" type="search" placeholder="搜索标题、网址或标签…" autocomplete="off" spellcheck="false" aria-label="搜索收藏">
+      <input id="search" type="search" placeholder="搜索标题、网址或类型…" autocomplete="off" spellcheck="false" aria-label="搜索收藏">
       <kbd>Ctrl K</kbd>
     </label>
 
@@ -53,7 +55,8 @@
   <div class="layout">
     <aside class="sidebar">
       <nav class="side-nav" id="sideNav" aria-label="收藏分类"></nav>
-      <div class="sidebar-tags" id="sidebarTags"></div>
+      <div class="sidebar-tags" id="sidebarGenres" hidden></div>
+      <div class="sidebar-tags" id="sidebarSeries" hidden></div>
       <div class="sidebar-foot">
         <div class="foot-links">
           <button type="button" class="linkish" id="exportBtn">导出备份</button>
@@ -64,7 +67,7 @@
           <span class="foot-sep">·</span>
           <button type="button" class="linkish" id="rulesBtn">解析规则</button>
           <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="tagsBtn">标签管理</button>
+          <button type="button" class="linkish" id="scrapeBtn">重新刮削</button>
           <span class="foot-sep">·</span>
           <button type="button" class="linkish" id="syncBtn">手机同步</button>
           <input id="importFile" type="file" accept="application/json,.json" hidden>
@@ -139,15 +142,6 @@
       </label>
 
       <div class="field">
-        <span>标签</span>
-        <div class="tag-editor" id="tagEditor">
-          <span class="tag-chips" id="tagChips"></span>
-          <input id="fTag" type="text" placeholder="输入后按 Enter 添加" autocomplete="off">
-        </div>
-        <div class="tag-suggest" id="tagSuggest" hidden></div>
-      </div>
-
-      <div class="field">
         <span>作品信息</span>
         <div class="meta-grid" id="metaList"></div>
       </div>
@@ -194,7 +188,7 @@
       </div>
       <p class="field-error" id="parserRuleError" hidden></p>
       <p class="rule-tip">
-        规则按 <code>matches</code> 匹配域名（含子域），字段支持 <code>label</code> / <code>meta</code> / <code>css</code> / <code>url</code> 等来源；可选 <code>searchUrl</code> 模板（<code>{code}</code> / <code>{title}</code>）用于重新定位片源。
+        规则按 <code>matches</code> 匹配域名（含子域），字段来源支持 <code>label</code> / <code>meta</code> / <code>css</code> / <code>url</code> / <code>derive</code>；可选 <code>searchUrl</code> 模板（<code>{code}</code> / <code>{title}</code>）用于重新定位片源。
       </p>
 
       <div class="dialog-actions">
@@ -227,19 +221,6 @@
         <button type="button" class="btn btn-ghost" id="syncOpen">打开手机页</button>
         <button type="button" class="btn btn-ghost" id="syncNow">立即同步</button>
         <button type="submit" class="btn btn-primary">保存</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog class="dialog" id="tagsDialog" aria-labelledby="tagsTitle">
-    <form id="tagsForm" novalidate>
-      <h2 id="tagsTitle">管理标签</h2>
-      <p class="dialog-hint">改名会同步到所有收藏；改成已有标签名即可合并。</p>
-
-      <div class="rule-list" id="tagManageList"></div>
-
-      <div class="dialog-actions">
-        <button type="button" class="btn btn-primary" id="tagsDone">完成</button>
       </div>
     </form>
   </dialog>
@@ -281,6 +262,53 @@
         <button type="button" class="btn btn-primary" id="backupDone">完成</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="dialog" id="scrapeDialog" aria-labelledby="scrapeTitle">
+    <form id="scrapeForm" novalidate>
+      <h2 id="scrapeTitle">重新刮削</h2>
+      <p class="dialog-hint">按当前解析规则重新抓取收藏页面。会更新标题、封面和解析字段，不影响喜爱、已看与演员资料。</p>
+      <p class="scrape-status" id="scrapeStatus"></p>
+      <p class="rule-tip">如果站点拦截直接请求，会自动打开后台标签页解析后关闭。</p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="scrapeClose">关闭</button>
+        <button type="button" class="btn btn-primary" id="scrapeStart">开始全部刮削</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog detail-dialog" id="detailDialog" aria-labelledby="detailTitle">
+    <div class="detail-body">
+      <button type="button" class="detail-close" id="detailClose" aria-label="关闭">×</button>
+
+      <div class="detail-hero">
+        <div class="detail-cover" id="detailCover"></div>
+        <div class="detail-info">
+          <h2 id="detailTitle"></h2>
+          <div class="detail-code" id="detailCode"></div>
+          <div class="detail-rows" id="detailMeta"></div>
+          <div class="detail-genres" id="detailGenres"></div>
+          <div class="detail-actions">
+            <button type="button" class="btn btn-primary" id="detailOpen">在隐私页打开</button>
+            <button type="button" class="btn btn-ghost" id="detailEdit">编辑</button>
+            <button type="button" class="btn btn-ghost" id="detailRescan">重新刮削</button>
+            <button type="button" class="btn btn-ghost" id="detailRelocate">重新定位</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="field-error detail-error" id="detailError" hidden></p>
+
+      <div class="detail-preview" id="detailPreview" hidden>
+        <video id="detailVideo" controls preload="metadata" playsinline></video>
+      </div>
+
+      <div class="detail-section" id="detailRelatedWrap" hidden>
+        <h3>相关收藏</h3>
+        <div class="detail-related" id="detailRelated"></div>
+      </div>
+    </div>
   </dialog>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

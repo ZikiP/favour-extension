@@ -1,14 +1,15 @@
-import { dedupeTags, els, hostOf, normalizeUrl, scrollMainTop, toast } from './dom.js';
+import { els, hostOf, normalizeUrl, scrollMainTop, toast } from './dom.js';
 import { local, normalizeActressMeta, normalizeAvatars, normalizeItems, readParserRules, readRules, session, state, upsert } from './store.js';
 import { jumpToPage, render, renderMain, renderRangeNotice, setView } from './views.js';
-import { clearUrlError, collectMeta, flushTagInput, renderTagEditor, showUrlError } from './editor.js';
+import { clearUrlError, collectMeta, showUrlError } from './editor.js';
 import { addRule, clearRuleError, importParserRules, openRulesDialog, openSettings, renderParserRules, renderRuleList } from './dialogs.js';
 import { openSyncDialog, renderSyncStatus, runPhoneSync, syncUrlValue } from './sync.js';
 import { applyImport, exportBackup, importBackup } from './backup.js';
 import { backupNow, chooseBackupFolder, clearBackupFolder, openBackupDialog } from './backup-settings.js';
+import { closeDetail, detailEditItem, detailOpenItem, detailRelocateItem, detailRescanItem } from './detail.js';
+import { openScrapeDialog, startScrapeAll } from './scrape.js';
 import { handleBlocked, onAddCurrent } from './actions.js';
 import { openRandom } from './items.js';
-import { openTagsDialog } from './tags.js';
 import { clearSelected, deleteSelected, exitSelecting, selectAllOnPage, toggleSelecting, toggleSort } from './list-tools.js';
 import { isAllowed } from '../shared/url-rules.js';
 
@@ -85,7 +86,6 @@ export function bindEvents() {
 
   els.editorForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    flushTagInput();
 
     const url = normalizeUrl(els.fUrl.value);
     if (!url) {
@@ -108,7 +108,7 @@ export function bindEvents() {
       id: state.editing ? state.editing.id : null,
       url,
       title,
-      tags: dedupeTags(state.draftTags),
+      tags: state.editing ? state.editing.tags : [],
       extras: meta.extras,
       cover: meta.cover,
       source: state.draftSource,
@@ -118,7 +118,6 @@ export function bindEvents() {
     if (result === 'added') {
       els.search.value = '';
       state.query = '';
-      state.tag = null;
       state.page = 1;
     }
     render();
@@ -135,29 +134,9 @@ export function bindEvents() {
 
   els.editor.addEventListener('close', () => {
     state.editing = null;
-    state.draftTags = [];
     state.draftExtras = [];
     state.draftCover = '';
     state.draftSource = null;
-  });
-
-  els.fTag.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      if (els.fTag.value.trim()) {
-        event.preventDefault();
-        flushTagInput();
-      }
-    } else if (event.key === ',' || event.key === '，') {
-      event.preventDefault();
-      flushTagInput();
-    } else if (event.key === 'Backspace' && !els.fTag.value && state.draftTags.length) {
-      state.draftTags.pop();
-      renderTagEditor();
-    }
-  });
-
-  els.tagEditor.addEventListener('click', (event) => {
-    if (event.target === els.tagEditor || event.target === els.tagChips) els.fTag.focus();
   });
 
   els.settingsBtn.addEventListener('click', openSettings);
@@ -210,7 +189,6 @@ export function bindEvents() {
   });
 
   els.rulesBtn.addEventListener('click', openRulesDialog);
-  els.tagsBtn.addEventListener('click', openTagsDialog);
   els.rulesDone.addEventListener('click', () => els.rulesDialog.close());
   els.rulesForm.addEventListener('submit', (event) => event.preventDefault());
   els.importRuleBtn.addEventListener('click', () => els.importRuleFile.click());
@@ -221,12 +199,6 @@ export function bindEvents() {
   });
   els.rulesDialog.addEventListener('click', (event) => {
     if (event.target === els.rulesDialog) els.rulesDialog.close();
-  });
-
-  els.tagsDone.addEventListener('click', () => els.tagsDialog.close());
-  els.tagsForm.addEventListener('submit', (event) => event.preventDefault());
-  els.tagsDialog.addEventListener('click', (event) => {
-    if (event.target === els.tagsDialog) els.tagsDialog.close();
   });
 
   els.importMerge.addEventListener('click', () => applyImport('merge'));
@@ -244,6 +216,24 @@ export function bindEvents() {
       state.pendingImport = null;
       els.importDialog.close();
     }
+  });
+
+  els.detailClose.addEventListener('click', closeDetail);
+  els.detailDialog.addEventListener('click', (event) => {
+    if (event.target === els.detailDialog) closeDetail();
+  });
+  els.detailDialog.addEventListener('close', closeDetail);
+  els.detailOpen.addEventListener('click', detailOpenItem);
+  els.detailEdit.addEventListener('click', detailEditItem);
+  els.detailRescan.addEventListener('click', detailRescanItem);
+  els.detailRelocate.addEventListener('click', detailRelocateItem);
+
+  els.scrapeBtn.addEventListener('click', openScrapeDialog);
+  els.scrapeStart.addEventListener('click', startScrapeAll);
+  els.scrapeClose.addEventListener('click', () => els.scrapeDialog.close());
+  els.scrapeForm.addEventListener('submit', (event) => event.preventDefault());
+  els.scrapeDialog.addEventListener('click', (event) => {
+    if (event.target === els.scrapeDialog) els.scrapeDialog.close();
   });
 
   els.exportBtn.addEventListener('click', exportBackup);

@@ -6,7 +6,8 @@ import { render, renderMain } from './views.js';
 export function renderListTools() {
   const canSelect = state.view !== 'actresses';
   els.sortToggle.hidden = !canSelect;
-  els.sortToggle.textContent = state.sort === 'opened' ? '最近打开' : '收录时间';
+  els.sortToggle.textContent = state.sort === 'opened' ? '最近打开' : state.sort === 'runtime' ? '时长' : '收录时间';
+  els.sortToggle.title = '切换排序：收录时间 → 最近打开 → 时长';
   els.selectToggle.hidden = !canSelect || state.selecting;
   els.list.classList.toggle('is-selecting', state.selecting && canSelect);
 
@@ -19,7 +20,7 @@ export function renderListTools() {
 }
 
 export function toggleSort() {
-  state.sort = state.sort === 'opened' ? 'created' : 'opened';
+  state.sort = state.sort === 'created' ? 'opened' : state.sort === 'opened' ? 'runtime' : 'created';
   state.page = 1;
   render();
 }

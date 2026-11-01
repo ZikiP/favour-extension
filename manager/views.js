@@ -1,6 +1,6 @@
 import { els, el, ICON, hueOf, scrollMainTop } from './dom.js';
 import { state } from './store.js';
-import { actressStats, tagStats } from './selectors.js';
+import { actressStats, genreStats, seriesStats } from './selectors.js';
 import { renderActressView, renderFavorites, renderLibrary } from './cards.js';
 import { renderListTools } from './list-tools.js';
 
@@ -34,7 +34,7 @@ function renderTabs() {
 }
 
 export function renderMain() {
-  els.search.placeholder = state.view === 'actresses' ? '搜索演员…' : '搜索标题、网址或标签…';
+  els.search.placeholder = state.view === 'actresses' ? '搜索演员…' : '搜索标题、网址或类型…';
   renderRangeNotice();
 
   if (state.view === 'actresses') renderActressView();
@@ -46,39 +46,39 @@ export function renderMain() {
 
 function renderSidebar() {
   const library = state.view === 'library';
-  const untagged = state.items.filter((item) => item.tags.length === 0).length;
   const unwatched = state.items.filter((item) => !item.watched).length;
+  const plain = !state.watched && !state.genre && !state.series;
 
   els.sideNav.replaceChildren(
-    navRow({ label: '全部收藏', icon: ICON.grid, count: state.items.length, active: library && !state.watched && state.tag === null, onClick: () => setFilter(null) }),
-    navRow({ label: '未分类', icon: ICON.tag, count: untagged, active: library && !state.watched && state.tag === '', onClick: () => setFilter('') }),
+    navRow({ label: '全部收藏', icon: ICON.grid, count: state.items.length, active: library && plain, onClick: setAll }),
     navRow({ label: '未看', icon: ICON.eye, count: unwatched, active: library && state.watched, onClick: setWatched }),
   );
 
-  const stats = tagStats();
-  els.sidebarTags.replaceChildren();
+  renderFilterSection(els.sidebarGenres, '类型', genreStats(), state.genre, setGenre, 10);
+  renderFilterSection(els.sidebarSeries, '系列', seriesStats(), state.series, setSeries, 8);
+}
+
+function renderFilterSection(container, title, stats, activeKey, onPick, limit) {
+  container.replaceChildren();
   if (!stats.length) {
-    els.sidebarTags.append(el('p', 'side-empty', '还没有标签'));
+    container.hidden = true;
     return;
   }
+  container.hidden = false;
+  container.append(el('h2', 'side-heading', title));
 
-  const head = el('div', 'side-heading-row');
-  head.append(el('h2', 'side-heading', '标签'));
-  els.sidebarTags.append(head);
-
-  for (const stat of stats) {
-    const key = stat.label.toLowerCase();
-    const active = library && !state.watched && state.tag === key;
+  for (const stat of stats.slice(0, limit)) {
+    const active = activeKey === stat.key;
     const btn = el('button', 'side-item' + (active ? ' is-active' : ''));
     btn.type = 'button';
     btn.title = stat.label;
     if (active) btn.setAttribute('aria-current', 'true');
 
     const dot = el('span', 'side-dot');
-    dot.style.setProperty('--h', hueOf(key));
+    dot.style.setProperty('--h', hueOf(stat.label));
     btn.append(dot, el('span', 'side-label', stat.label), el('span', 'side-count', String(stat.count)));
-    btn.addEventListener('click', () => setFilter(active ? null : key));
-    els.sidebarTags.append(btn);
+    btn.addEventListener('click', () => onPick(active ? null : stat.key));
+    container.append(btn);
   }
 }
 
@@ -104,11 +104,36 @@ export function setView(view) {
   render();
 }
 
-export function setFilter(tag) {
+export function setAll() {
   state.view = 'library';
-  state.tag = tag;
   state.actress = null;
   state.watched = false;
+  state.genre = null;
+  state.series = null;
+  state.selecting = false;
+  state.selected.clear();
+  state.page = 1;
+  render();
+}
+
+export function setGenre(genre) {
+  state.view = 'library';
+  state.actress = null;
+  state.watched = false;
+  state.genre = genre;
+  state.series = null;
+  state.selecting = false;
+  state.selected.clear();
+  state.page = 1;
+  render();
+}
+
+export function setSeries(series) {
+  state.view = 'library';
+  state.actress = null;
+  state.watched = false;
+  state.genre = null;
+  state.series = series;
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
@@ -117,9 +142,10 @@ export function setFilter(tag) {
 
 export function setWatched() {
   state.view = 'library';
-  state.tag = null;
   state.actress = null;
   state.watched = true;
+  state.genre = null;
+  state.series = null;
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
@@ -129,8 +155,9 @@ export function setWatched() {
 export function openActress(key) {
   state.view = 'library';
   state.actress = key;
-  state.tag = null;
   state.watched = false;
+  state.genre = null;
+  state.series = null;
   state.query = '';
   state.page = 1;
   state.selecting = false;

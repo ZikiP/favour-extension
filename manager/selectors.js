@@ -1,5 +1,6 @@
 import { baseActressName } from '../shared/names.js';
 import { matchesQuery } from './dom.js';
+import { extraValue, genresOf, runtimeSeconds, seriesOf } from './meta.js';
 import { state } from './store.js';
 
 export function actressNames(item) {
@@ -46,12 +47,12 @@ export function actressLabel(key) {
   return match ? match.name : key;
 }
 
-export function tagStats() {
+export function genreStats() {
   const map = new Map();
   for (const item of state.items) {
-    for (const tag of item.tags) {
-      const key = tag.toLowerCase();
-      if (!map.has(key)) map.set(key, { label: tag, count: 0 });
+    for (const label of genresOf(item)) {
+      const key = label.toLowerCase();
+      if (!map.has(key)) map.set(key, { key, label, count: 0 });
       map.get(key).count += 1;
     }
   }
@@ -60,9 +61,52 @@ export function tagStats() {
   );
 }
 
-export function tagLabel(key) {
-  const match = tagStats().find((stat) => stat.label.toLowerCase() === key);
+export function genreLabel(key) {
+  const match = genreStats().find((stat) => stat.key === key);
   return match ? match.label : key;
+}
+
+export function seriesStats() {
+  const map = new Map();
+  for (const item of state.items) {
+    const label = seriesOf(item);
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (!map.has(key)) map.set(key, { key, label, count: 0 });
+    map.get(key).count += 1;
+  }
+  return [...map.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'),
+  );
+}
+
+export function seriesLabel(key) {
+  const match = seriesStats().find((stat) => stat.key === key);
+  return match ? match.label : key;
+}
+
+export function relatedItems(item) {
+  const genres = genresOf(item).map((value) => value.toLowerCase());
+  const series = seriesOf(item).toLowerCase();
+  const actresses = actressNames(item).map((name) => baseActressName(name).toLowerCase());
+
+  return state.items
+    .filter((other) => other.id !== item.id)
+    .map((other) => {
+      let score = 0;
+      if (series && seriesOf(other).toLowerCase() === series) score += 4;
+      const otherGenres = genresOf(other).map((value) => value.toLowerCase());
+      score += otherGenres.filter((value) => genres.includes(value)).length;
+      const otherActresses = actressNames(other).map((name) =>
+        baseActressName(name).toLowerCase(),
+      );
+      if (actresses.some((name) => otherActresses.includes(name))) score += 2;
+      return { item: other, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || b.item.createdAt - a.item.createdAt)
+    .slice(0, 6)
+    .map((entry) => entry.item);
 }
 
 export function sortItems(items) {
@@ -70,6 +114,13 @@ export function sortItems(items) {
   if (state.sort === 'opened') {
     sorted.sort(
       (a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0) || b.createdAt - a.createdAt,
+    );
+  } else if (state.sort === 'runtime') {
+    const seconds = new Map(
+      sorted.map((item) => [item.id, runtimeSeconds(extraValue(item, 'runtime'))]),
+    );
+    sorted.sort(
+      (a, b) => (seconds.get(b.id) || 0) - (seconds.get(a.id) || 0) || b.createdAt - a.createdAt,
     );
   } else {
     sorted.sort((a, b) => b.createdAt - a.createdAt);
@@ -86,9 +137,12 @@ export function visibleItems() {
         return actressNames(item).some((name) => baseActressName(name).toLowerCase() === state.actress);
       })
       .filter((item) => {
-        if (state.tag === null) return true;
-        if (state.tag === '') return item.tags.length === 0;
-        return item.tags.some((tag) => tag.toLowerCase() === state.tag);
+        if (!state.genre) return true;
+        return genresOf(item).some((value) => value.toLowerCase() === state.genre);
+      })
+      .filter((item) => {
+        if (!state.series) return true;
+        return seriesOf(item).toLowerCase() === state.series;
       })
       .filter((item) => matchesQuery(item, state.query)),
   );

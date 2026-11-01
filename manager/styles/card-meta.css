@@ -1,0 +1,38 @@
+.card-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.genre-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.genre-more {
+  align-self: center;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.card-runtime {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-actions {
+  gap: 1px;
+}
+
+.card-actions .icon-btn {
+  width: 26px;
+}
