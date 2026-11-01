@@ -1,16 +1,17 @@
 import { els, hostOf, normalizeUrl, scrollMainTop, toast } from './dom.js';
 import { local, normalizeActressMeta, normalizeAvatars, normalizeItems, readParserRules, readRules, session, state, upsert } from './store.js';
-import { jumpToPage, render, renderMain, renderRangeNotice, setView } from './views.js';
+import { jumpToPage, openFilterDialog, render, renderMain, renderRangeNotice, setView } from './views.js';
 import { clearUrlError, collectMeta, showUrlError } from './editor.js';
 import { addRule, clearRuleError, importParserRules, openRulesDialog, openSettings, renderParserRules, renderRuleList } from './dialogs.js';
 import { openSyncDialog, renderSyncStatus, runPhoneSync, syncUrlValue } from './sync.js';
 import { applyImport, exportBackup, importBackup } from './backup.js';
 import { backupNow, chooseBackupFolder, clearBackupFolder, openBackupDialog } from './backup-settings.js';
-import { closeDetail, detailEditItem, detailOpenItem, detailRelocateItem, detailRescanItem } from './detail.js';
-import { openScrapeDialog, startScrapeAll } from './scrape.js';
+import { closeDetail, detailCopyItem, detailEditItem, detailOpenItem, detailRelocateItem, detailRescanItem, handleDetailKey } from './detail.js';
+import { openScrapeDialog, scrapeSelected, startScrapeAll } from './scrape.js';
 import { handleBlocked, onAddCurrent } from './actions.js';
 import { openRandom } from './items.js';
-import { clearSelected, deleteSelected, exitSelecting, selectAllOnPage, toggleSelecting, toggleSort } from './list-tools.js';
+import { clearSelected, deleteSelected, exitSelecting, favoriteSelected, selectAllOnPage, setSort, toggleSelecting, watchedSelected } from './list-tools.js';
+import { bindListKeys } from './keys.js';
 import { isAllowed } from '../shared/url-rules.js';
 
 export function bindEvents() {
@@ -22,6 +23,7 @@ export function bindEvents() {
   });
 
   els.tabLibrary.addEventListener('click', () => setView('library'));
+  els.tabCollections.addEventListener('click', () => setView('collections'));
   els.tabActresses.addEventListener('click', () => setView('actresses'));
   els.tabFavorites.addEventListener('click', () => setView('favorites'));
   els.clearActress.addEventListener('click', () => {
@@ -58,9 +60,17 @@ export function bindEvents() {
   els.addCurrent.addEventListener('click', onAddCurrent);
   els.randomBtn.addEventListener('click', openRandom);
 
-  els.sortToggle.addEventListener('click', toggleSort);
+  els.sortSelect.addEventListener('change', () => setSort(els.sortSelect.value));
+  els.filterBtn.addEventListener('click', openFilterDialog);
+  els.filterDone.addEventListener('click', () => els.filterDialog.close());
+  els.filterDialog.addEventListener('click', (event) => {
+    if (event.target === els.filterDialog) els.filterDialog.close();
+  });
   els.selectToggle.addEventListener('click', toggleSelecting);
   els.selectionAll.addEventListener('click', selectAllOnPage);
+  els.selectionFavorite.addEventListener('click', favoriteSelected);
+  els.selectionWatched.addEventListener('click', watchedSelected);
+  els.selectionScrape.addEventListener('click', scrapeSelected);
   els.selectionDelete.addEventListener('click', deleteSelected);
   els.selectionCancel.addEventListener('click', exitSelecting);
 
@@ -134,6 +144,7 @@ export function bindEvents() {
 
   els.editor.addEventListener('close', () => {
     state.editing = null;
+    state.draftGenres = [];
     state.draftExtras = [];
     state.draftCover = '';
     state.draftSource = null;
@@ -151,7 +162,6 @@ export function bindEvents() {
     if (event.target === els.settings) els.settings.close();
   });
 
-  els.syncBtn.addEventListener('click', openSyncDialog);
   els.syncForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const url = syncUrlValue(els.syncUrl.value);
@@ -188,7 +198,6 @@ export function bindEvents() {
     if (event.target === els.syncDialog) els.syncDialog.close();
   });
 
-  els.rulesBtn.addEventListener('click', openRulesDialog);
   els.rulesDone.addEventListener('click', () => els.rulesDialog.close());
   els.rulesForm.addEventListener('submit', (event) => event.preventDefault());
   els.importRuleBtn.addEventListener('click', () => els.importRuleFile.click());
@@ -224,11 +233,12 @@ export function bindEvents() {
   });
   els.detailDialog.addEventListener('close', closeDetail);
   els.detailOpen.addEventListener('click', detailOpenItem);
+  els.detailCopy.addEventListener('click', detailCopyItem);
   els.detailEdit.addEventListener('click', detailEditItem);
   els.detailRescan.addEventListener('click', detailRescanItem);
   els.detailRelocate.addEventListener('click', detailRelocateItem);
+  els.detailDialog.addEventListener('keydown', handleDetailKey);
 
-  els.scrapeBtn.addEventListener('click', openScrapeDialog);
   els.scrapeStart.addEventListener('click', startScrapeAll);
   els.scrapeClose.addEventListener('click', () => els.scrapeDialog.close());
   els.scrapeForm.addEventListener('submit', (event) => event.preventDefault());
@@ -236,9 +246,40 @@ export function bindEvents() {
     if (event.target === els.scrapeDialog) els.scrapeDialog.close();
   });
 
-  els.exportBtn.addEventListener('click', exportBackup);
+  els.moreBtn.addEventListener('click', () => {
+    if (!els.moreDialog.open) els.moreDialog.showModal();
+    els.moreClose.focus();
+  });
+  const closeMore = () => els.moreDialog.close();
+  els.moreClose.addEventListener('click', closeMore);
+  els.moreDialog.addEventListener('click', (event) => {
+    if (event.target === els.moreDialog) closeMore();
+  });
+  els.moreExport.addEventListener('click', () => {
+    closeMore();
+    exportBackup();
+  });
+  els.moreBackup.addEventListener('click', () => {
+    closeMore();
+    openBackupDialog();
+  });
+  els.moreImport.addEventListener('click', () => {
+    closeMore();
+    els.importFile.click();
+  });
+  els.moreRules.addEventListener('click', () => {
+    closeMore();
+    openRulesDialog();
+  });
+  els.moreScrape.addEventListener('click', () => {
+    closeMore();
+    openScrapeDialog();
+  });
+  els.moreSync.addEventListener('click', () => {
+    closeMore();
+    openSyncDialog();
+  });
 
-  els.backupBtn.addEventListener('click', openBackupDialog);
   els.chooseFolderBtn.addEventListener('click', chooseBackupFolder);
   els.clearFolderBtn.addEventListener('click', clearBackupFolder);
   els.backupNow.addEventListener('click', backupNow);
@@ -247,8 +288,6 @@ export function bindEvents() {
   els.backupDialog.addEventListener('click', (event) => {
     if (event.target === els.backupDialog) els.backupDialog.close();
   });
-
-  els.importBtn.addEventListener('click', () => els.importFile.click());
 
   els.importFile.addEventListener('change', async () => {
     const file = els.importFile.files && els.importFile.files[0];
@@ -290,4 +329,6 @@ export function bindEvents() {
       handleBlocked(changes.pendingBlocked.newValue);
     }
   });
+
+  bindListKeys();
 }

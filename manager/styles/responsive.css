@@ -38,17 +38,26 @@
     gap: 6px;
   }
 
-  .side-heading {
+  .sidebar .side-heading {
     display: none;
   }
 
-  .side-item {
+  .sidebar .side-item {
     width: auto;
     padding: 6px 10px;
   }
 
-  .side-count {
+  .sidebar .side-count {
     display: none;
+  }
+
+  .list-tools .filter-btn:not([hidden]) {
+    display: inline-flex;
+  }
+
+  #sidebarGenres,
+  #sidebarSeries {
+    display: none !important;
   }
 
   .sidebar-foot {

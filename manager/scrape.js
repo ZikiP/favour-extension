@@ -1,4 +1,4 @@
-import { els, originPattern, toast } from './dom.js';
+import { els, el, hostOf, originPattern, toast } from './dom.js';
 import { keep, state } from './store.js';
 import { render } from './views.js';
 import { isAllowed } from '../shared/url-rules.js';
@@ -9,7 +9,25 @@ let progress = null;
 
 export function openScrapeDialog() {
   renderStatus();
+  renderFailures();
   if (!els.scrapeDialog.open) els.scrapeDialog.showModal();
+}
+
+export async function startScrapeAll() {
+  await runScrape(state.items.slice());
+}
+
+export async function scrapeSelected() {
+  if (running) return;
+  const ids = new Set(state.selected);
+  const items = state.items.filter((item) => ids.has(item.id));
+  if (!items.length) return;
+
+  state.selecting = false;
+  state.selected.clear();
+  render();
+  openScrapeDialog();
+  await runScrape(items);
 }
 
 export async function rescanItem(item) {
@@ -24,10 +42,10 @@ export async function rescanItem(item) {
   return state.items.find((entry) => entry.id === item.id) || updated;
 }
 
-export async function startScrapeAll() {
+async function runScrape(items) {
   if (running) return;
 
-  const entries = state.items
+  const entries = items
     .map((item) => ({ item, rule: ruleFor(item) }))
     .filter((entry) => entry.rule);
 
@@ -42,10 +60,19 @@ export async function startScrapeAll() {
     return;
   }
 
-  const skipped = state.items.length - entries.length;
-  progress = { total: state.items.length, done: skipped, ok: 0, skip: skipped, fail: 0, finished: false };
+  const skipped = items.length - entries.length;
+  progress = {
+    total: items.length,
+    done: skipped,
+    ok: 0,
+    skip: skipped,
+    fail: 0,
+    failures: [],
+    finished: false,
+  };
   running = true;
   renderStatus();
+  renderFailures();
 
   const updates = new Map();
   const strategy = { useTabs: false };
@@ -53,8 +80,13 @@ export async function startScrapeAll() {
     try {
       updates.set(entry.item.id, await scrapeSmart(entry.item, entry.rule, strategy));
       progress.ok += 1;
-    } catch {
+    } catch (error) {
       progress.fail += 1;
+      progress.failures.push({
+        id: entry.item.id,
+        title: entry.item.title || hostOf(entry.item.url),
+        error: error && error.message ? error.message : '抓取失败',
+      });
     }
     progress.done += 1;
     renderStatus();
@@ -69,6 +101,7 @@ export async function startScrapeAll() {
   running = false;
   progress.finished = true;
   renderStatus();
+  renderFailures();
   toast(`刮削完成：成功 ${progress.ok}、跳过 ${progress.skip}、失败 ${progress.fail}`);
 }
 
@@ -190,12 +223,14 @@ function waitForTabLoad(tabId, timeout = 20000) {
 
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.onRemoved.addListener(onRemoved);
-    chrome.tabs.get(tabId).then((tab) => {
-      if (tab && tab.status === 'complete') {
-        cleanup();
-        resolve();
-      }
-    }).catch(() => {});
+    chrome.tabs.get(tabId)
+      .then((tab) => {
+        if (tab && tab.status === 'complete') {
+          cleanup();
+          resolve();
+        }
+      })
+      .catch(() => {});
   });
 }
 
@@ -217,6 +252,60 @@ async function scrapeOne(item, rule) {
   if (!hasData) throw new Error('页面没有解析到数据');
 
   return applyParsed(item, parsed, rule, response.url);
+}
+
+async function retryFailure(id) {
+  const item = state.items.find((entry) => entry.id === id);
+  if (!item) {
+    progress.fail = Math.max(0, progress.fail - 1);
+    removeFailure(id);
+    renderStatus();
+    return;
+  }
+
+  try {
+    await rescanItem(item);
+    progress.fail = Math.max(0, progress.fail - 1);
+    progress.ok += 1;
+    removeFailure(id);
+    renderStatus();
+  } catch (error) {
+    const failure = progress.failures.find((entry) => entry.id === id);
+    if (failure) failure.error = error && error.message ? error.message : '重试失败';
+    renderFailures();
+  }
+}
+
+function removeFailure(id) {
+  progress.failures = progress.failures.filter((entry) => entry.id !== id);
+  renderFailures();
+}
+
+function renderFailures() {
+  const failures = progress && Array.isArray(progress.failures) ? progress.failures : [];
+  els.scrapeFailures.replaceChildren();
+  els.scrapeFailuresWrap.hidden = !failures.length;
+  if (!failures.length) return;
+
+  for (const failure of failures) {
+    const row = el('div', 'scrape-failure');
+    const text = el('div', 'scrape-failure-text');
+    text.append(
+      el('span', 'scrape-failure-title', failure.title),
+      el('span', 'scrape-failure-error', failure.error),
+    );
+    text.title = failure.error;
+
+    const retry = el('button', 'btn btn-ghost btn-sm', '重试');
+    retry.type = 'button';
+    retry.addEventListener('click', () => {
+      retry.disabled = true;
+      void retryFailure(failure.id);
+    });
+
+    row.append(text, retry);
+    els.scrapeFailures.append(row);
+  }
 }
 
 function renderStatus() {

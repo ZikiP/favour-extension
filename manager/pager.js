@@ -3,6 +3,7 @@ import { state } from './store.js';
 
 export const PAGE_SIZE = 12;
 export const ACTRESS_PAGE_SIZE = 18;
+export const COLLECTION_PAGE_SIZE = 18;
 
 export function paginate(items, size = PAGE_SIZE) {
   const total = items.length;

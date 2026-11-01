@@ -25,19 +25,23 @@ export const state = {
   editing: null,
   lastRandomId: null,
   pendingImport: null,
+  draftGenres: [],
   draftExtras: [],
   draftCover: '',
   draftSource: null,
 };
 
 export async function refresh() {
-  const data = await local.get(['items', 'settings', 'parserRules', 'actressAvatars', 'actressMeta']);
+  const data = await local.get(['items', 'settings', 'parserRules', 'actressAvatars', 'actressMeta', 'prefs']);
   const { items, merged } = mergeByCode(normalizeItems(data.items));
   state.items = items;
   state.rules = readRules(data.settings);
   state.parserRules = readParserRules(data.parserRules);
   state.actressAvatars = normalizeAvatars(data.actressAvatars);
   state.actressMeta = normalizeActressMeta(data.actressMeta);
+  const prefs = data.prefs && typeof data.prefs === 'object' ? data.prefs : {};
+  if (['library', 'actresses', 'favorites', 'collections'].includes(prefs.view)) state.view = prefs.view;
+  if (['created', 'opened', 'runtime'].includes(prefs.sort)) state.sort = prefs.sort;
   if (merged) {
     try {
       await local.set({ items });
@@ -56,6 +60,10 @@ export async function refresh() {
 export function readRules(settings) {
   if (!settings || !Array.isArray(settings.whitelist)) return [];
   return settings.whitelist.filter((rule) => typeof rule === 'string');
+}
+
+export function savePrefs() {
+  local.set({ prefs: { view: state.view, sort: state.sort } }).catch(() => {});
 }
 
 export function normalizeAvatars(raw) {

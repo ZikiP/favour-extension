@@ -1,13 +1,22 @@
 import { els, el, hostOf, hueOf, initialOf, toast } from './dom.js';
 import { actressNames, relatedItems } from './selectors.js';
 import { extraValue, genresOf, previewUrl } from './meta.js';
-import { openItem, openRelocate, searchUrlFor } from './items.js';
+import { copyUrl, openItem, openRelocate, searchUrlFor } from './items.js';
 import { openEditor } from './editor.js';
 import { rescanItem } from './scrape.js';
 
 let current = null;
+let ring = [];
+let ringIndex = 0;
+let noteTimer = 0;
 
 export function openDetail(item) {
+  ring = [item, ...relatedItems(item)];
+  ringIndex = 0;
+  showDetail(item);
+}
+
+function showDetail(item) {
   current = item;
   renderDetail(item);
   if (!els.detailDialog.open) els.detailDialog.showModal();
@@ -16,6 +25,8 @@ export function openDetail(item) {
 
 export function closeDetail() {
   current = null;
+  ring = [];
+  ringIndex = 0;
   stopPreview();
   if (els.detailDialog.open) els.detailDialog.close();
 }
@@ -36,6 +47,27 @@ export function detailRelocateItem() {
   if (current) openRelocate(current);
 }
 
+export function detailCopyItem() {
+  const item = current;
+  if (!item) return;
+  copyUrl(item).then((ok) => {
+    showDetailNote(ok ? '链接已复制' : '复制失败，请手动复制');
+  });
+}
+
+export function handleDetailKey(event) {
+  if (!els.detailDialog.open) return;
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('video, input, textarea, select')) return;
+  if (ring.length <= 1) return;
+
+  event.preventDefault();
+  const step = event.key === 'ArrowRight' ? 1 : -1;
+  ringIndex = (ringIndex + step + ring.length) % ring.length;
+  showDetail(ring[ringIndex]);
+}
+
 export async function detailRescanItem() {
   const item = current;
   if (!item || els.detailRescan.disabled) return;
@@ -45,7 +77,10 @@ export async function detailRescanItem() {
   clearDetailError();
   try {
     const updated = await rescanItem(item);
-    if (current === item) openDetail(updated);
+    if (current === item) {
+      openDetail(updated);
+      showDetailNote('已重新刮削');
+    }
   } catch (error) {
     const message = '刮削失败：' + (error && error.message ? error.message : '未知错误');
     if (els.detailDialog.open) showDetailError(message);
@@ -58,6 +93,7 @@ export async function detailRescanItem() {
 
 function renderDetail(item) {
   clearDetailError();
+  clearDetailNote();
   const code = extraValue(item, 'code');
   els.detailTitle.textContent = item.title || hostOf(item.url);
 
@@ -185,4 +221,19 @@ function showDetailError(message) {
 function clearDetailError() {
   els.detailError.textContent = '';
   els.detailError.hidden = true;
+}
+
+function showDetailNote(message) {
+  clearTimeout(noteTimer);
+  els.detailNote.textContent = message;
+  els.detailNote.hidden = false;
+  noteTimer = setTimeout(() => {
+    els.detailNote.hidden = true;
+  }, 2200);
+}
+
+function clearDetailNote() {
+  clearTimeout(noteTimer);
+  els.detailNote.textContent = '';
+  els.detailNote.hidden = true;
 }

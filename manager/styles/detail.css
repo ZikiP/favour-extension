@@ -255,3 +255,9 @@
 .detail-error {
   margin: 0;
 }
+
+.detail-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}

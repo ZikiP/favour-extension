@@ -12,7 +12,9 @@
   <link rel="stylesheet" href="styles/card-meta.css">
   <link rel="stylesheet" href="styles/views.css">
   <link rel="stylesheet" href="styles/actress-cards.css">
+  <link rel="stylesheet" href="styles/collections.css">
   <link rel="stylesheet" href="styles/dialogs.css">
+  <link rel="stylesheet" href="styles/dialogs-extra.css">
   <link rel="stylesheet" href="styles/detail.css">
   <link rel="stylesheet" href="styles/toast.css">
   <link rel="stylesheet" href="styles/responsive.css">
@@ -59,17 +61,7 @@
       <div class="sidebar-tags" id="sidebarSeries" hidden></div>
       <div class="sidebar-foot">
         <div class="foot-links">
-          <button type="button" class="linkish" id="exportBtn">导出备份</button>
-          <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="backupBtn">备份设置</button>
-          <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="importBtn">导入</button>
-          <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="rulesBtn">解析规则</button>
-          <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="scrapeBtn">重新刮削</button>
-          <span class="foot-sep">·</span>
-          <button type="button" class="linkish" id="syncBtn">手机同步</button>
+          <button type="button" class="linkish" id="moreBtn">更多…</button>
           <input id="importFile" type="file" accept="application/json,.json" hidden>
         </div>
         <p class="local-note">数据仅保存在此浏览器本地</p>
@@ -80,6 +72,7 @@
       <div class="content">
         <div class="view-tabs" role="tablist" aria-label="视图">
           <button type="button" class="view-tab is-active" id="tabLibrary" role="tab" aria-selected="true">收藏<span class="view-tab-count" id="tabLibraryCount"></span></button>
+          <button type="button" class="view-tab" id="tabCollections" role="tab" aria-selected="false">合集<span class="view-tab-count" id="tabCollectionsCount"></span></button>
           <button type="button" class="view-tab" id="tabActresses" role="tab" aria-selected="false">演员<span class="view-tab-count" id="tabActressesCount"></span></button>
           <button type="button" class="view-tab" id="tabFavorites" role="tab" aria-selected="false">最爱<span class="view-tab-count" id="tabFavoritesCount"></span></button>
         </div>
@@ -99,10 +92,16 @@
           <span class="count" id="listCount"></span>
           <button type="button" class="filter-clear" id="clearActress" hidden aria-label="清除演员筛选" title="清除演员筛选">×</button>
           <div class="list-tools">
-            <button type="button" class="btn btn-ghost btn-sm" id="sortToggle" title="切换排序方式">收录时间</button>
+            <button type="button" class="btn btn-ghost btn-sm filter-btn" id="filterBtn">筛选</button>
+            <select id="sortSelect" class="btn btn-ghost btn-sm sort-select" aria-label="排序方式">
+              <option value="created">收录时间</option>
+              <option value="opened">最近打开</option>
+              <option value="runtime">时长</option>
+            </select>
             <button type="button" class="btn btn-ghost btn-sm" id="selectToggle">选择</button>
           </div>
         </div>
+        <div class="active-filters" id="activeFilters" hidden></div>
         <section class="list" id="list"></section>
         <nav class="pager" id="pager" hidden aria-label="分页">
           <button type="button" class="btn btn-ghost" id="pagerPrev">上一页</button>
@@ -121,6 +120,9 @@
   <div class="selection-bar" id="selectionBar" hidden>
     <span class="selection-count" id="selectionCount">未选择</span>
     <button type="button" class="btn btn-ghost btn-sm" id="selectionAll">全选本页</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="selectionFavorite">喜爱</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="selectionWatched">标记已看</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="selectionScrape">刮削</button>
     <button type="button" class="btn btn-primary btn-sm" id="selectionDelete" disabled>删除选中</button>
     <button type="button" class="btn btn-ghost btn-sm" id="selectionCancel">取消</button>
   </div>
@@ -264,11 +266,44 @@
     </form>
   </dialog>
 
+  <dialog class="dialog more-dialog" id="moreDialog" aria-labelledby="moreTitle">
+    <div class="more-body">
+      <h2 id="moreTitle">更多</h2>
+      <div class="more-list">
+        <button type="button" class="more-item" id="moreExport">导出备份</button>
+        <button type="button" class="more-item" id="moreBackup">备份设置</button>
+        <button type="button" class="more-item" id="moreImport">导入备份</button>
+        <button type="button" class="more-item" id="moreRules">解析规则</button>
+        <button type="button" class="more-item" id="moreScrape">重新刮削</button>
+        <button type="button" class="more-item" id="moreSync">手机同步</button>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="moreClose">关闭</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="dialog filter-dialog" id="filterDialog" aria-labelledby="filterTitle">
+    <div class="filter-body">
+      <h2 id="filterTitle">筛选</h2>
+      <div class="filter-section" id="filterGenres"></div>
+      <div class="filter-section" id="filterSeries"></div>
+      <p class="rule-empty" id="filterEmpty" hidden>还没有可筛选的类型或系列。</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="filterDone">完成</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="dialog" id="scrapeDialog" aria-labelledby="scrapeTitle">
     <form id="scrapeForm" novalidate>
       <h2 id="scrapeTitle">重新刮削</h2>
       <p class="dialog-hint">按当前解析规则重新抓取收藏页面。会更新标题、封面和解析字段，不影响喜爱、已看与演员资料。</p>
       <p class="scrape-status" id="scrapeStatus"></p>
+      <div class="scrape-failures" id="scrapeFailuresWrap" hidden>
+        <div class="scrape-failures-head">失败项</div>
+        <div class="scrape-failures-list" id="scrapeFailures"></div>
+      </div>
       <p class="rule-tip">如果站点拦截直接请求，会自动打开后台标签页解析后关闭。</p>
 
       <div class="dialog-actions">
@@ -291,6 +326,7 @@
           <div class="detail-genres" id="detailGenres"></div>
           <div class="detail-actions">
             <button type="button" class="btn btn-primary" id="detailOpen">在隐私页打开</button>
+            <button type="button" class="btn btn-ghost" id="detailCopy">复制链接</button>
             <button type="button" class="btn btn-ghost" id="detailEdit">编辑</button>
             <button type="button" class="btn btn-ghost" id="detailRescan">重新刮削</button>
             <button type="button" class="btn btn-ghost" id="detailRelocate">重新定位</button>
@@ -299,6 +335,7 @@
       </div>
 
       <p class="field-error detail-error" id="detailError" hidden></p>
+      <p class="detail-note" id="detailNote" hidden></p>
 
       <div class="detail-preview" id="detailPreview" hidden>
         <video id="detailVideo" controls preload="metadata" playsinline></video>

@@ -1,13 +1,17 @@
-import { els } from './dom.js';
-import { state } from './store.js';
-import { removeMany } from './items.js';
+import { els, toast } from './dom.js';
+import { savePrefs, state } from './store.js';
+import { removeMany, setFavoriteMany, setWatchedMany } from './items.js';
 import { render, renderMain } from './views.js';
 
+function selectedItems() {
+  return state.items.filter((item) => state.selected.has(item.id));
+}
+
 export function renderListTools() {
-  const canSelect = state.view !== 'actresses';
-  els.sortToggle.hidden = !canSelect;
-  els.sortToggle.textContent = state.sort === 'opened' ? '最近打开' : state.sort === 'runtime' ? '时长' : '收录时间';
-  els.sortToggle.title = '切换排序：收录时间 → 最近打开 → 时长';
+  const canSelect = state.view === 'library' || state.view === 'favorites';
+  els.sortSelect.hidden = !canSelect;
+  els.sortSelect.value = state.sort;
+  els.filterBtn.hidden = !canSelect;
   els.selectToggle.hidden = !canSelect || state.selecting;
   els.list.classList.toggle('is-selecting', state.selecting && canSelect);
 
@@ -15,13 +19,24 @@ export function renderListTools() {
   document.body.classList.toggle('has-selection', active);
   els.selectionBar.hidden = !active;
   if (!active) return;
-  els.selectionCount.textContent = state.selected.size ? `已选 ${state.selected.size} 项` : '未选择';
-  els.selectionDelete.disabled = state.selected.size === 0;
+
+  const items = selectedItems();
+  els.selectionCount.textContent = items.length ? `已选 ${items.length} 项` : '未选择';
+  els.selectionDelete.disabled = !items.length;
+  els.selectionFavorite.disabled = !items.length;
+  els.selectionWatched.disabled = !items.length;
+  els.selectionScrape.disabled = !items.length;
+  els.selectionFavorite.textContent =
+    items.length && items.every((item) => item.favorite) ? '取消喜爱' : '喜爱';
+  els.selectionWatched.textContent =
+    items.length && items.every((item) => item.watched) ? '标记未看' : '标记已看';
 }
 
-export function toggleSort() {
-  state.sort = state.sort === 'created' ? 'opened' : state.sort === 'opened' ? 'runtime' : 'created';
+export function setSort(value) {
+  if (!['created', 'opened', 'runtime'].includes(value)) return;
+  state.sort = value;
   state.page = 1;
+  savePrefs();
   render();
 }
 
@@ -60,6 +75,24 @@ export function exitSelecting() {
   state.selecting = false;
   state.selected.clear();
   renderMain();
+  renderListTools();
+}
+
+export async function favoriteSelected() {
+  const items = selectedItems();
+  if (!items.length) return;
+  const favorite = !items.every((item) => item.favorite);
+  await setFavoriteMany(items.map((item) => item.id), favorite);
+  toast(favorite ? '已加入喜爱' : '已取消喜爱');
+  renderListTools();
+}
+
+export async function watchedSelected() {
+  const items = selectedItems();
+  if (!items.length) return;
+  const watched = !items.every((item) => item.watched);
+  await setWatchedMany(items.map((item) => item.id), watched);
+  toast(watched ? '已标记为已看' : '已标记为未看');
   renderListTools();
 }
 

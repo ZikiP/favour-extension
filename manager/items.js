@@ -54,6 +54,22 @@ export async function toggleWatched(item) {
   toast(item.watched ? '已标记为未看' : '已标记为已看');
 }
 
+export async function setFavoriteMany(ids, favorite) {
+  const wanted = new Set(ids);
+  await keep(state.items.map((entry) =>
+    wanted.has(entry.id) ? { ...entry, favorite, updatedAt: Date.now() } : entry,
+  ));
+  render();
+}
+
+export async function setWatchedMany(ids, watched) {
+  const wanted = new Set(ids);
+  await keep(state.items.map((entry) =>
+    wanted.has(entry.id) ? { ...entry, watched, updatedAt: Date.now() } : entry,
+  ));
+  render();
+}
+
 async function restoreItems(removed) {
   const data = await local.get('items');
   const current = normalizeItems(data.items);
@@ -103,6 +119,7 @@ export async function copyUrl(item) {
   try {
     await navigator.clipboard.writeText(item.url);
     toast('链接已复制');
+    return true;
   } catch {
     const area = document.createElement('textarea');
     area.value = item.url;
@@ -113,6 +130,7 @@ export async function copyUrl(item) {
     const ok = document.execCommand('copy');
     area.remove();
     toast(ok ? '链接已复制' : '复制失败，请手动复制', ok ? {} : { tone: 'error' });
+    return ok;
   }
 }
 

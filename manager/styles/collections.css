@@ -1,0 +1,98 @@
+.list--collections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.collection-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  transition: transform 0.16s ease, border-color 0.16s, box-shadow 0.16s;
+}
+
+.collection-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+  box-shadow: 0 14px 30px -18px rgb(16 24 40 / 0.4);
+}
+
+.collection-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.collection-hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.collection-cover {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: var(--panel-soft);
+}
+
+.collection-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.collection-cover-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.5;
+  text-align: center;
+  color: hsl(var(--h, 220) 42% 32%);
+  background: linear-gradient(150deg, hsl(var(--h, 220) 85% 93%), hsl(var(--h, 220) 70% 84%));
+}
+
+@media (prefers-color-scheme: dark) {
+  .collection-cover-fallback {
+    color: hsl(var(--h, 220) 65% 78%);
+    background: linear-gradient(150deg, hsl(var(--h, 220) 32% 22%), hsl(var(--h, 220) 30% 14%));
+  }
+}
+
+.collection-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 12px;
+}
+
+.collection-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.collection-count {
+  font-size: 11.5px;
+  color: var(--faint);
+}

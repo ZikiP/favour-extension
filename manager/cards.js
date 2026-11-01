@@ -7,7 +7,7 @@ import { openEditor } from './editor.js';
 import { openDetail } from './detail.js';
 import { onAddCurrent } from './actions.js';
 import { openSettings } from './dialogs.js';
-import { copyUrl, openItem, openRelocate, removeItem, searchUrlFor, toggleFavoriteItem, toggleWatched } from './items.js';
+import { openItem, removeItem, toggleFavoriteItem, toggleWatched } from './items.js';
 import { setActressOrder, toggleActressFavorite } from './actresses.js';
 import { toggleSelected } from './list-tools.js';
 import { render, renderMain, openActress, setView } from './views.js';
@@ -67,6 +67,7 @@ export function renderFavorites() {
 }
 
 export function renderActressView() {
+
   const stats = actressStats();
   const filtered = stats.filter((stat) => fuzzyMatch(stat.name, state.query));
   const pageData = paginate(filtered, ACTRESS_PAGE_SIZE);
@@ -167,13 +168,13 @@ function renderCard(item) {
 
   const link = el('button', 'card-hit');
   link.type = 'button';
-  link.setAttribute('aria-label', `在隐私标签页打开 ${item.title || item.url}`);
+  link.setAttribute('aria-label', `查看 ${item.title || item.url} 的详情`);
   link.addEventListener('click', () => {
     if (state.selecting) {
       toggleSelected(item.id);
       return;
     }
-    openItem(item);
+    openDetail(item);
   });
   card.append(link);
 
@@ -194,6 +195,14 @@ function renderCard(item) {
     img.addEventListener('error', () => img.remove());
     coverBox.append(img);
   }
+
+  const play = el('button', 'card-play');
+  play.type = 'button';
+  play.title = '播放';
+  play.setAttribute('aria-label', `播放 ${item.title || item.url}`);
+  play.innerHTML = ICON.play;
+  play.addEventListener('click', () => openItem(item));
+  coverBox.append(play);
 
   const favorite = el('button', 'card-fav' + (item.favorite ? ' is-fav' : ''));
   favorite.type = 'button';
@@ -246,14 +255,9 @@ function renderCard(item) {
   body.append(title);
 
   const actions = el('div', 'card-actions');
-  if (searchUrlFor(item)) {
-    actions.append(iconButton('重新定位片源', ICON.search, () => openRelocate(item)));
-  }
   actions.append(
-    iconButton('复制链接', ICON.copy, () => copyUrl(item)),
     iconButton(item.watched ? '标记为未看' : '标记为已看', ICON.eye, () => toggleWatched(item), item.watched ? 'is-on' : ''),
     iconButton('编辑', ICON.pencil, () => openEditor({ item })),
-    iconButton('详情', ICON.info, () => openDetail(item)),
     iconButton('删除', ICON.trash, () => removeItem(item), 'is-danger'),
   );
 

@@ -1,7 +1,8 @@
 import { els, el, ICON, hueOf, scrollMainTop } from './dom.js';
-import { state } from './store.js';
-import { actressStats, genreStats, seriesStats } from './selectors.js';
+import { savePrefs, state } from './store.js';
+import { actressLabel, actressStats, genreLabel, genreStats, seriesLabel, seriesStats } from './selectors.js';
 import { renderActressView, renderFavorites, renderLibrary } from './cards.js';
+import { renderCollectionView } from './collections.js';
 import { renderListTools } from './list-tools.js';
 
 export function render() {
@@ -19,11 +20,13 @@ function renderTabs() {
   const favoriteCount = state.items.filter((item) => item.favorite).length;
 
   els.tabLibraryCount.textContent = String(state.items.length);
+  els.tabCollectionsCount.textContent = String(seriesStats().length);
   els.tabActressesCount.textContent = String(stats.length);
   els.tabFavoritesCount.textContent = String(favoriteCount);
 
   for (const [view, tab] of [
     ['library', els.tabLibrary],
+    ['collections', els.tabCollections],
     ['actresses', els.tabActresses],
     ['favorites', els.tabFavorites],
   ]) {
@@ -34,14 +37,61 @@ function renderTabs() {
 }
 
 export function renderMain() {
-  els.search.placeholder = state.view === 'actresses' ? '搜索演员…' : '搜索标题、网址或类型…';
+  els.search.placeholder = state.view === 'actresses'
+    ? '搜索演员…'
+    : state.view === 'collections'
+      ? '搜索系列…'
+      : '搜索标题、网址或类型…';
   renderRangeNotice();
 
-  if (state.view === 'actresses') renderActressView();
+  if (state.view === 'collections') renderCollectionView();
+  else if (state.view === 'actresses') renderActressView();
   else if (state.view === 'favorites') renderFavorites();
   else renderLibrary();
 
   renderListTools();
+  renderActiveFilters();
+}
+
+function renderActiveFilters() {
+  els.activeFilters.replaceChildren();
+  if (state.view !== 'library') {
+    els.activeFilters.hidden = true;
+    return;
+  }
+
+  const labels = [];
+  if (state.watched) labels.push('未看');
+  if (state.actress) labels.push(`演员 · ${actressLabel(state.actress)}`);
+  if (state.genre) labels.push(`类型 · ${genreLabel(state.genre)}`);
+  if (state.series) labels.push(`系列 · ${seriesLabel(state.series)}`);
+
+  els.activeFilters.hidden = !labels.length;
+  for (const label of labels) {
+    const chip = el('span', 'active-filter', label);
+    const clear = el('button', null, '×');
+    clear.type = 'button';
+    clear.setAttribute('aria-label', `清除筛选 ${label}`);
+    clear.addEventListener('click', setAll);
+    chip.append(clear);
+    els.activeFilters.append(chip);
+  }
+}
+
+export function openFilterDialog() {
+  const genres = genreStats();
+  const series = seriesStats();
+  renderFilterSection(els.filterGenres, '类型', genres, state.genre, (value) => {
+    setGenre(value);
+    els.filterDialog.close();
+  }, 30);
+  renderFilterSection(els.filterSeries, '系列', series, state.series, (value) => {
+    setSeries(value);
+    els.filterDialog.close();
+  }, 30);
+  els.filterEmpty.hidden = Boolean(genres.length || series.length);
+  if (!els.filterDialog.open) els.filterDialog.showModal();
+  els.filterDone.focus();
 }
 
 function renderSidebar() {
@@ -101,6 +151,7 @@ export function setView(view) {
   state.selecting = false;
   state.selected.clear();
   els.search.value = '';
+  savePrefs();
   render();
 }
 
@@ -113,6 +164,7 @@ export function setAll() {
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
+  savePrefs();
   render();
 }
 
@@ -125,6 +177,7 @@ export function setGenre(genre) {
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
+  savePrefs();
   render();
 }
 
@@ -137,6 +190,7 @@ export function setSeries(series) {
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
+  savePrefs();
   render();
 }
 
@@ -149,6 +203,7 @@ export function setWatched() {
   state.selecting = false;
   state.selected.clear();
   state.page = 1;
+  savePrefs();
   render();
 }
 
@@ -163,6 +218,7 @@ export function openActress(key) {
   state.selecting = false;
   state.selected.clear();
   els.search.value = '';
+  savePrefs();
   render();
 }
 

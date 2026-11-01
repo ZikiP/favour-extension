@@ -72,8 +72,13 @@ export function seriesStats() {
     const label = seriesOf(item);
     if (!label) continue;
     const key = label.toLowerCase();
-    if (!map.has(key)) map.set(key, { key, label, count: 0 });
-    map.get(key).count += 1;
+    if (!map.has(key)) map.set(key, { key, label, count: 0, cover: '', latestAt: 0 });
+    const entry = map.get(key);
+    entry.count += 1;
+    if (item.cover && (!entry.cover || item.createdAt >= entry.latestAt)) {
+      entry.cover = item.cover;
+    }
+    if (item.createdAt > entry.latestAt) entry.latestAt = item.createdAt;
   }
   return [...map.values()].sort(
     (a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'),
