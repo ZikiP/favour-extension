@@ -102,6 +102,7 @@ function renderDetail(item) {
 
   renderCover(item, code);
   renderRows(item);
+  renderDescription(item);
   renderGenres(item);
   renderRelated(item);
   els.detailRelocate.hidden = !searchUrlFor(item);
@@ -150,6 +151,22 @@ function renderRows(item) {
     row.append(el('span', 'detail-label', label), text);
     els.detailMeta.append(row);
   }
+}
+
+function renderDescription(item) {
+  const node = els.detailDesc;
+  if (!node) return;
+  const text = extraValue(item, 'description');
+  node.textContent = text;
+  node.hidden = !text;
+  node.classList.remove('is-open');
+  node.title = text.length > 80 ? '点击展开全文' : '';
+  node.onclick = text && text.length > 80
+    ? () => {
+        const open = node.classList.toggle('is-open');
+        node.title = open ? '点击收起' : '点击展开全文';
+      }
+    : null;
 }
 
 function renderGenres(item) {

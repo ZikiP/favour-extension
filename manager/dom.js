@@ -134,6 +134,7 @@ export const els = {
   detailTitle: $('#detailTitle'),
   detailCode: $('#detailCode'),
   detailMeta: $('#detailMeta'),
+  detailDesc: $('#detailDesc'),
   detailGenres: $('#detailGenres'),
   detailError: $('#detailError'),
   detailNote: $('#detailNote'),
