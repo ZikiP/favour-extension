@@ -1,13 +1,12 @@
 import { els, toast } from './dom.js';
 import { local } from './store.js';
 
-const SYNC_DEFAULT_URL = 'http://127.0.0.1:8789';
+const SYNC_DEFAULT_URL = '';
 
 export async function openSyncDialog() {
   const data = await local.get(['syncSettings', 'syncStatus']);
   const settings = data.syncSettings || {};
   els.syncUrl.value = settings.url || SYNC_DEFAULT_URL;
-  els.syncPublicUrl.value = settings.publicUrl || '';
   els.syncToken.value = settings.token || '';
   renderSyncStatus(data.syncStatus || null);
   if (!els.syncDialog.open) els.syncDialog.showModal();

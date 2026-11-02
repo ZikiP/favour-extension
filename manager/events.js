@@ -166,13 +166,7 @@ export function bindEvents() {
     event.preventDefault();
     const url = syncUrlValue(els.syncUrl.value);
     if (!url) {
-      toast('服务地址需要是 http(s) 地址', { tone: 'error' });
-      return;
-    }
-    const rawPublic = els.syncPublicUrl.value.trim();
-    const publicUrl = rawPublic ? syncUrlValue(rawPublic) : '';
-    if (rawPublic && !publicUrl) {
-      toast('手机访问地址需要是 http(s) 地址', { tone: 'error' });
+      toast('接收地址需要是 http(s) 地址', { tone: 'error' });
       return;
     }
     const token = els.syncToken.value.trim();
@@ -181,19 +175,11 @@ export function bindEvents() {
       return;
     }
 
-    await local.set({ syncSettings: { url, publicUrl: publicUrl || '', token } });
+    await local.set({ syncSettings: { url, token } });
     toast('同步设置已保存');
     runPhoneSync();
   });
   els.syncNow.addEventListener('click', runPhoneSync);
-  els.syncOpen.addEventListener('click', () => {
-    const publicUrl = syncUrlValue(els.syncPublicUrl.value);
-    if (!publicUrl) {
-      toast('先填写手机访问地址', { tone: 'error' });
-      return;
-    }
-    chrome.tabs.create({ url: publicUrl });
-  });
   els.syncDialog.addEventListener('click', (event) => {
     if (event.target === els.syncDialog) els.syncDialog.close();
   });

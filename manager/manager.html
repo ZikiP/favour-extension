@@ -201,26 +201,21 @@
 
   <dialog class="dialog" id="syncDialog" aria-labelledby="syncTitle">
     <form id="syncForm" novalidate>
-      <h2 id="syncTitle">手机同步</h2>
-      <p class="dialog-hint">把收藏推送到本机的小服务，手机通过 Tailscale 打开即可浏览。服务地址和令牌来自 favour-sync 的部署输出。</p>
+      <h2 id="syncTitle">同步到 FavourPlayer</h2>
+      <p class="dialog-hint">把收藏直接推送到手机上的 FavourPlayer。地址和令牌在 App 的「接收同步」里；手机与电脑需在同一 Tailscale 或局域网。</p>
 
       <label class="field">
-        <span>本机服务地址</span>
-        <input id="syncUrl" type="text" placeholder="http://127.0.0.1:8789" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="field">
-        <span>手机访问地址</span>
-        <input id="syncPublicUrl" type="text" placeholder="https://…/favour/" autocomplete="off" spellcheck="false">
+        <span>接收地址</span>
+        <input id="syncUrl" type="text" placeholder="http://192.168.1.10:8790" autocomplete="off" spellcheck="false">
       </label>
       <label class="field">
         <span>访问令牌</span>
-        <input id="syncToken" type="password" placeholder="data/token.txt 里的字符串" autocomplete="off" spellcheck="false">
+        <input id="syncToken" type="password" placeholder="App 接收设置里显示的令牌" autocomplete="off" spellcheck="false">
       </label>
 
       <p class="sync-status" id="syncStatus"></p>
 
       <div class="dialog-actions">
-        <button type="button" class="btn btn-ghost" id="syncOpen">打开手机页</button>
         <button type="button" class="btn btn-ghost" id="syncNow">立即同步</button>
         <button type="submit" class="btn btn-primary">保存</button>
       </div>
