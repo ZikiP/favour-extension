@@ -205,8 +205,15 @@ async function runSync() {
     return status;
   }
 
-  const { items } = await chrome.storage.local.get('items');
-  const status = await pushToTargets(targets, buildSyncBody(items));
+  const { items, actressAvatars, actressMeta } = await chrome.storage.local.get([
+    'items',
+    'actressAvatars',
+    'actressMeta',
+  ]);
+  const status = await pushToTargets(
+    targets,
+    buildSyncBody(items, { actressAvatars, actressMeta }),
+  );
   await writeSyncStatus(status);
   return status;
 }
@@ -261,7 +268,7 @@ function queueSync() {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
-  if (changes.items) queueSync();
+  if (changes.items || changes.actressAvatars || changes.actressMeta) queueSync();
 });
 
 chrome.runtime.onStartup.addListener(() => queueSync());

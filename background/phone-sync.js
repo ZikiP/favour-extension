@@ -1,10 +1,18 @@
 const SYNC_TIMEOUT_MS = 15000;
 
-export function buildSyncBody(items, now = Date.now()) {
+export function buildSyncBody(items, meta = {}, now = Date.now()) {
+  const avatars = meta && typeof meta.actressAvatars === 'object' && meta.actressAvatars
+    ? meta.actressAvatars
+    : {};
+  const actressMeta = meta && typeof meta.actressMeta === 'object' && meta.actressMeta
+    ? meta.actressMeta
+    : {};
   return JSON.stringify({
     schemaVersion: 1,
     updatedAt: now,
     items: Array.isArray(items) ? items : [],
+    actressAvatars: avatars,
+    actressMeta,
   });
 }
 
