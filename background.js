@@ -1,6 +1,6 @@
 import { isAllowed } from './shared/url-rules.js';
 import { readSyncTargets } from './shared/sync-targets.js';
-import { buildSyncBody, pushToTargets } from './background/phone-sync.js';
+import { buildSyncBody, probeTargets, pushToTargets } from './background/phone-sync.js';
 import { enrichActressAvatars } from './background/actress-avatars.js';
 import { setupBackupSchedule } from './background/backup-schedule.js';
 
@@ -211,6 +211,26 @@ async function runSync() {
   return status;
 }
 
+async function writeTestStatus(status) {
+  try {
+    await chrome.storage.local.set({ syncTestStatus: status });
+  } catch {
+    // status is best-effort
+  }
+}
+
+async function runConnectionTest() {
+  const targets = await readConfiguredTargets();
+  if (!targets.length) {
+    const status = { ok: false, at: Date.now(), results: [], error: '未配置同步目标' };
+    await writeTestStatus(status);
+    return status;
+  }
+  const status = await probeTargets(targets);
+  await writeTestStatus(status);
+  return status;
+}
+
 function syncNow() {
   if (!syncPromise) {
     syncPromise = runSync()
@@ -284,6 +304,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     syncNow()
       .then((result) => sendResponse(result))
       .catch(() => sendResponse({ ok: false, error: '同步失败' }));
+    return true;
+  }
+  if (message.type === 'favour.sync-test') {
+    runConnectionTest()
+      .then((result) => sendResponse(result))
+      .catch(() =>
+        sendResponse({ ok: false, at: Date.now(), results: [], error: '测试失败' }),
+      );
     return true;
   }
   return undefined;

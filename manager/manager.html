@@ -205,13 +205,18 @@
       <p class="dialog-hint">把收藏推送到中间服务（推荐）或直接推到设备。中间服务保存最新快照，设备打开时再拉取。</p>
 
       <div class="sync-targets" id="syncTargets"></div>
-      <button type="button" class="btn btn-ghost sync-add" id="syncAdd">添加目标</button>
-      <p class="rule-tip">中间服务地址填到 /favour（不含 /api/items）；设备填 App 显示的接收地址和令牌。</p>
+      <div class="sync-add-row">
+        <button type="button" class="btn btn-ghost" id="syncAdd">添加目标</button>
+        <button type="button" class="btn btn-ghost" id="syncUseLocal">填入本机服务</button>
+      </div>
+      <p class="rule-tip">本机中间服务：http://127.0.0.1:8789；远程中间服务：https://主机/favour（不含 /api/items）。设备填 App 显示的接收地址。</p>
       <p class="field-error" id="syncError" hidden></p>
 
       <div class="sync-status" id="syncStatus"></div>
+      <div class="sync-status" id="syncTestStatus"></div>
 
       <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="syncTest">测试连接</button>
         <button type="button" class="btn btn-ghost" id="syncNow">立即同步</button>
         <button type="submit" class="btn btn-primary">保存</button>
       </div>

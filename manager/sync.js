@@ -10,11 +10,17 @@ let lastSavedTargets = [];
 
 export async function openSyncDialog() {
   clearSyncError();
-  const data = await local.get(['syncTargets', 'syncSettings', 'syncStatus']);
+  const data = await local.get([
+    'syncTargets',
+    'syncSettings',
+    'syncStatus',
+    'syncTestStatus',
+  ]);
   const targets = readSyncTargets(data);
   lastSavedTargets = targets;
   renderSyncTargets(targets.length ? targets : [blankTarget()]);
   renderSyncStatus(data.syncStatus || null, targets);
+  renderTestStatus(data.syncTestStatus || null, targets);
   if (!els.syncDialog.open) els.syncDialog.showModal();
   requestAnimationFrame(() => {
     const input = els.syncTargets.querySelector('.sync-target [data-role="url"]');
@@ -116,9 +122,9 @@ export function collectSyncTargets() {
 export async function saveSyncTargets(targets) {
   await local.set({ syncTargets: targets });
   try {
-    await local.remove('syncSettings');
+    await local.remove(['syncSettings', 'syncTestStatus']);
   } catch {
-    // syncTargets takes precedence; the legacy key is harmless
+    // syncTargets takes precedence; stale keys are harmless
   }
   lastSavedTargets = targets;
 }
@@ -144,6 +150,90 @@ export async function runPhoneSync() {
   } finally {
     els.syncNow.disabled = false;
   }
+}
+
+export async function runSyncTest() {
+  els.syncTest.disabled = true;
+  try {
+    const status = await chrome.runtime.sendMessage({ type: 'favour.sync-test' });
+    renderTestStatus(status || null);
+    if (status && status.ok) {
+      toast(`连接正常 · ${status.results.length} 个目标`);
+    } else if (status && Array.isArray(status.results) && status.results.length) {
+      const okCount = status.results.filter((result) => result.ok).length;
+      toast(`连通 ${okCount}/${status.results.length} 个目标`, { tone: 'error' });
+    } else {
+      toast(status && status.error ? `测试失败：${status.error}` : '测试失败', {
+        tone: 'error',
+      });
+    }
+  } catch {
+    toast('测试失败', { tone: 'error' });
+  } finally {
+    els.syncTest.disabled = false;
+  }
+}
+
+export function renderTestStatus(status, targets = lastSavedTargets) {
+  els.syncTestStatus.replaceChildren();
+  if (!status) {
+    els.syncTestStatus.textContent = '尚未测试连接';
+    return;
+  }
+
+  const time = formatSyncTime(status.at);
+  const results = Array.isArray(status.results) ? status.results : [];
+  if (!results.length) {
+    els.syncTestStatus.textContent = status.error
+      ? `${status.error}（${time}）`
+      : `尚未测试连接（${time}）`;
+    return;
+  }
+
+  const okCount = results.filter((result) => result.ok).length;
+  const headText = status.ok
+    ? `连接正常 · ${time}`
+    : `连通 ${okCount}/${results.length} · ${time}`;
+  els.syncTestStatus.append(
+    el('div', 'sync-status-head' + (status.ok ? '' : ' is-fail'), headText),
+  );
+
+  const byId = new Map(results.map((result) => [result.id, result]));
+  const rows = targets.length ? targets : results;
+  for (const target of rows) {
+    const result = byId.get(target.id);
+    const row = el('div', 'sync-status-row');
+    row.append(el('span', 'sync-status-name', target.name));
+    if (!result) {
+      row.append(el('span', 'sync-status-detail', '未测试'));
+    } else if (result.ok) {
+      row.append(el('span', 'sync-status-detail', `${result.count || 0} 条`));
+    } else {
+      row.append(el('span', 'sync-status-detail is-fail', result.error || '连接失败'));
+    }
+    els.syncTestStatus.append(row);
+  }
+}
+
+export function useLocalHubTarget() {
+  const cards = targetCards();
+  let card = cards.find((item) => !item.querySelector('[data-role="url"]').value.trim());
+  if (!card) {
+    if (cards.length >= SYNC_TARGET_LIMIT) return;
+    els.syncTargets.querySelector('.rule-empty')?.remove();
+    card = syncTargetCard(blankTarget(), cards.length);
+    els.syncTargets.append(card);
+  }
+
+  const name = card.querySelector('[data-role="name"]');
+  const url = card.querySelector('[data-role="url"]');
+  if (!name.value.trim()) name.value = '中间服务';
+  url.value = 'http://127.0.0.1:8789';
+  url.dispatchEvent(new Event('input', { bubbles: true }));
+  refreshTargetPlaceholders();
+  refreshAddButton();
+  clearSyncError();
+  card.querySelector('[data-role="token"]')?.focus();
 }
 
 export function renderSyncStatus(status, targets = lastSavedTargets) {
@@ -225,7 +315,7 @@ function syncTargetCard(target, index) {
   name.setAttribute('aria-label', `第 ${index + 1} 个目标名称`);
   head.append(name, iconButton('移除目标', ICON.trash, () => removeSyncTarget(card), 'is-danger'));
 
-  const url = textInput(target.url, 'https://host/favour 或 http://ip:8790');
+  const url = textInput(target.url, 'http://127.0.0.1:8789');
   url.dataset.role = 'url';
   url.setAttribute('aria-label', `第 ${index + 1} 个目标地址`);
 

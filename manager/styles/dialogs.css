@@ -300,11 +300,14 @@
   background: var(--panel);
 }
 
-.sync-add {
+.sync-add-row {
+  display: flex;
+  flex-wrap: wrap;
   align-self: flex-start;
+  gap: 8px;
 }
 
-.sync-add:disabled {
+.sync-add-row .btn:disabled {
   opacity: 0.45;
   cursor: default;
 }

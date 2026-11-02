@@ -9,8 +9,11 @@ import {
   collectSyncTargets,
   openSyncDialog,
   renderSyncStatus,
+  renderTestStatus,
   runPhoneSync,
+  runSyncTest,
   saveSyncTargets,
+  useLocalHubTarget,
 } from './sync.js';
 import { applyImport, exportBackup, importBackup } from './backup.js';
 import { backupNow, chooseBackupFolder, clearBackupFolder, openBackupDialog } from './backup-settings.js';
@@ -179,6 +182,7 @@ export function bindEvents() {
     clearSyncError();
   });
   els.syncAdd.addEventListener('click', addSyncTarget);
+  els.syncUseLocal.addEventListener('click', useLocalHubTarget);
 
   els.syncForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -203,6 +207,17 @@ export function bindEvents() {
       return;
     }
     runPhoneSync();
+  });
+  els.syncTest.addEventListener('click', async () => {
+    const targets = collectSyncTargets();
+    if (!targets) return;
+    try {
+      await saveSyncTargets(targets);
+    } catch {
+      toast('保存同步设置失败', { tone: 'error' });
+      return;
+    }
+    runSyncTest();
   });
   els.syncDialog.addEventListener('click', (event) => {
     if (event.target === els.syncDialog) els.syncDialog.close();
@@ -330,6 +345,9 @@ export function bindEvents() {
     }
     if (areaName === 'local' && changes.syncStatus && els.syncDialog.open) {
       renderSyncStatus(changes.syncStatus.newValue || null);
+    }
+    if (areaName === 'local' && changes.syncTestStatus && els.syncDialog.open) {
+      renderTestStatus(changes.syncTestStatus.newValue || null);
     }
     if (areaName === 'session' && changes.lastTab) {
       state.lastTab = changes.lastTab.newValue || null;
