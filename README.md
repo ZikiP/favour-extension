@@ -54,7 +54,7 @@
 
 ## 解析规则
 
-规则文件放在 `rules/`，也可以在管理页的「解析规则」里粘贴 JSON 追加。用户规则优先于内置规则。
+规则通过管理页的「导入规则 JSON…」载入，本仓库不分发站点规则，需要自行准备。也可以在「解析规则」里直接粘贴 JSON 追加。
 
 一条规则由 `matches`（生效范围）和 `fields`（要抓的字段）组成：
 
@@ -159,7 +159,6 @@ manager/               管理页
   dom.js / meta.js / selectors.js / keys.js / actions.js
   styles/              样式
 shared/                公共模块：字段提取引擎、白名单匹配、同步目标、备份句柄
-rules/                 内置解析规则
 icons/
 tools/make-icons.mjs   生成图标
 ```
