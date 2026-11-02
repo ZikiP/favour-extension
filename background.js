@@ -1,4 +1,6 @@
 import { isAllowed } from './shared/url-rules.js';
+import { readSyncTargets } from './shared/sync-targets.js';
+import { buildSyncBody, pushToTargets } from './background/phone-sync.js';
 import { enrichActressAvatars } from './background/actress-avatars.js';
 import { setupBackupSchedule } from './background/backup-schedule.js';
 
@@ -171,10 +173,14 @@ async function parseUrl(url) {
 }
 
 let syncTimer = null;
+let syncPromise = null;
 
-async function readSyncSettings() {
-  const { syncSettings } = await chrome.storage.local.get('syncSettings');
-  return syncSettings || {};
+async function readConfiguredTargets() {
+  const { syncTargets, syncSettings } = await chrome.storage.local.get([
+    'syncTargets',
+    'syncSettings',
+  ]);
+  return readSyncTargets({ syncTargets, syncSettings });
 }
 
 async function writeSyncStatus(status) {
@@ -185,52 +191,45 @@ async function writeSyncStatus(status) {
   }
 }
 
-async function syncNow() {
-  const settings = await readSyncSettings();
-  const base = String(settings.url || '').trim().replace(/\/+$/, '');
-  const token = String(settings.token || '').trim();
-
-  if (!base || !token) {
-    const status = { ok: false, at: Date.now(), error: '未配置同步服务' };
+async function runSync() {
+  const targets = await readConfiguredTargets();
+  if (!targets.length) {
+    const status = {
+      ok: false,
+      at: Date.now(),
+      count: 0,
+      error: '未配置同步设备',
+      results: [],
+    };
     await writeSyncStatus(status);
     return status;
   }
 
   const { items } = await chrome.storage.local.get('items');
-  try {
-    const response = await fetch(`${base}/api/items`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        schemaVersion: 1,
-        updatedAt: Date.now(),
-        items: Array.isArray(items) ? items : [],
-      }),
-    });
+  const status = await pushToTargets(targets, buildSyncBody(items));
+  await writeSyncStatus(status);
+  return status;
+}
 
-    let payload = {};
-    try {
-      payload = await response.json();
-    } catch {
-      payload = {};
-    }
-    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-
-    const status = { ok: true, at: Date.now(), count: Number(payload.count) || 0 };
-    await writeSyncStatus(status);
-    return status;
-  } catch (error) {
-    const status = {
-      ok: false,
-      at: Date.now(),
-      error: error && error.message ? error.message : '同步失败',
-    };
-    await writeSyncStatus(status);
-    return status;
+function syncNow() {
+  if (!syncPromise) {
+    syncPromise = runSync()
+      .catch(async (error) => {
+        const status = {
+          ok: false,
+          at: Date.now(),
+          count: 0,
+          error: error && error.message ? error.message : '同步失败',
+          results: [],
+        };
+        await writeSyncStatus(status);
+        return status;
+      })
+      .finally(() => {
+        syncPromise = null;
+      });
   }
+  return syncPromise;
 }
 
 function queueSync() {
@@ -242,7 +241,7 @@ function queueSync() {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
-  if (changes.items || changes.syncSettings) queueSync();
+  if (changes.items) queueSync();
 });
 
 chrome.runtime.onStartup.addListener(() => queueSync());

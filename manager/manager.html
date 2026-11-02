@@ -201,19 +201,15 @@
 
   <dialog class="dialog" id="syncDialog" aria-labelledby="syncTitle">
     <form id="syncForm" novalidate>
-      <h2 id="syncTitle">同步到 FavourPlayer</h2>
-      <p class="dialog-hint">把收藏直接推送到手机上的 FavourPlayer。地址和令牌在 App 的「接收同步」里；手机与电脑需在同一 Tailscale 或局域网。</p>
+      <h2 id="syncTitle">同步设置</h2>
+      <p class="dialog-hint">把收藏推送到中间服务（推荐）或直接推到设备。中间服务保存最新快照，设备打开时再拉取。</p>
 
-      <label class="field">
-        <span>接收地址</span>
-        <input id="syncUrl" type="text" placeholder="http://192.168.1.10:8790" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="field">
-        <span>访问令牌</span>
-        <input id="syncToken" type="password" placeholder="App 接收设置里显示的令牌" autocomplete="off" spellcheck="false">
-      </label>
+      <div class="sync-targets" id="syncTargets"></div>
+      <button type="button" class="btn btn-ghost sync-add" id="syncAdd">添加目标</button>
+      <p class="rule-tip">中间服务地址填到 /favour（不含 /api/items）；设备填 App 显示的接收地址和令牌。</p>
+      <p class="field-error" id="syncError" hidden></p>
 
-      <p class="sync-status" id="syncStatus"></p>
+      <div class="sync-status" id="syncStatus"></div>
 
       <div class="dialog-actions">
         <button type="button" class="btn btn-ghost" id="syncNow">立即同步</button>
@@ -270,7 +266,7 @@
         <button type="button" class="more-item" id="moreImport">导入备份</button>
         <button type="button" class="more-item" id="moreRules">解析规则</button>
         <button type="button" class="more-item" id="moreScrape">重新刮削</button>
-        <button type="button" class="more-item" id="moreSync">手机同步</button>
+        <button type="button" class="more-item" id="moreSync">同步设置</button>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn btn-primary" id="moreClose">关闭</button>

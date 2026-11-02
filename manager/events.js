@@ -3,7 +3,15 @@ import { local, normalizeActressMeta, normalizeAvatars, normalizeItems, readPars
 import { jumpToPage, openFilterDialog, render, renderMain, renderRangeNotice, setView } from './views.js';
 import { clearUrlError, collectMeta, showUrlError } from './editor.js';
 import { addRule, clearRuleError, importParserRules, openRulesDialog, openSettings, renderParserRules, renderRuleList } from './dialogs.js';
-import { openSyncDialog, renderSyncStatus, runPhoneSync, syncUrlValue } from './sync.js';
+import {
+  addSyncTarget,
+  clearSyncError,
+  collectSyncTargets,
+  openSyncDialog,
+  renderSyncStatus,
+  runPhoneSync,
+  saveSyncTargets,
+} from './sync.js';
 import { applyImport, exportBackup, importBackup } from './backup.js';
 import { backupNow, chooseBackupFolder, clearBackupFolder, openBackupDialog } from './backup-settings.js';
 import { closeDetail, detailCopyItem, detailEditItem, detailOpenItem, detailRelocateItem, detailRescanItem, handleDetailKey } from './detail.js';
@@ -162,24 +170,40 @@ export function bindEvents() {
     if (event.target === els.settings) els.settings.close();
   });
 
+  els.syncTargets.addEventListener('input', (event) => {
+    const input = event.target;
+    if (input instanceof HTMLInputElement) {
+      input.classList.remove('is-invalid');
+      input.removeAttribute('aria-invalid');
+    }
+    clearSyncError();
+  });
+  els.syncAdd.addEventListener('click', addSyncTarget);
+
   els.syncForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const url = syncUrlValue(els.syncUrl.value);
-    if (!url) {
-      toast('接收地址需要是 http(s) 地址', { tone: 'error' });
+    const targets = collectSyncTargets();
+    if (!targets) return;
+    try {
+      await saveSyncTargets(targets);
+    } catch {
+      toast('保存同步设置失败', { tone: 'error' });
       return;
     }
-    const token = els.syncToken.value.trim();
-    if (!token) {
-      toast('请填写访问令牌', { tone: 'error' });
-      return;
-    }
-
-    await local.set({ syncSettings: { url, token } });
     toast('同步设置已保存');
     runPhoneSync();
   });
-  els.syncNow.addEventListener('click', runPhoneSync);
+  els.syncNow.addEventListener('click', async () => {
+    const targets = collectSyncTargets();
+    if (!targets) return;
+    try {
+      await saveSyncTargets(targets);
+    } catch {
+      toast('保存同步设置失败', { tone: 'error' });
+      return;
+    }
+    runPhoneSync();
+  });
   els.syncDialog.addEventListener('click', (event) => {
     if (event.target === els.syncDialog) els.syncDialog.close();
   });
