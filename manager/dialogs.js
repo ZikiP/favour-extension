@@ -1,5 +1,6 @@
 import { els, el, ICON, iconButton, toast } from './dom.js';
 import { state, local, normalizeParserRule } from './store.js';
+import { guardConfigOf, injectGuard } from '../shared/guard.js';
 import { normalizeRule } from '../shared/url-rules.js';
 import { render, renderRangeNotice } from './views.js';
 
@@ -91,7 +92,7 @@ export function renderParserRules() {
   for (const rule of state.parserRules) {
     const row = el('div', 'rule-item');
     const info = el('div', 'parser-rule-info');
-    const guardNote = rule.guard ? ' · 拦截弹窗' : '';
+    const guardNote = rule.guard ? ' · 已配置弹窗守卫' : '';
     info.append(
       el('div', 'parser-rule-name', rule.name),
       el(
@@ -100,6 +101,11 @@ export function renderParserRules() {
         `v${rule.version} · ${rule.matches.join(' · ')} · ${rule.fields.length} 个字段${guardNote}`,
       ),
     );
+
+    // 守卫状态：需要该站点的主机权限才能注入
+    const guard = el('div', 'rule-guard');
+    info.append(guard);
+    renderGuardState(rule, guard);
 
     const remove = el('button', 'icon-btn is-danger');
     remove.type = 'button';
@@ -110,6 +116,87 @@ export function renderParserRules() {
 
     row.append(info, remove);
     els.parserRuleList.append(row);
+  }
+}
+
+/** 规则对应的主机权限（http / https 都可能用到） */
+function originPatternsOf(rule) {
+  const first = (rule.matches || [])[0];
+  if (!first) return [];
+  const host = String(first).split('/')[0].replace(/^\*\./, '').trim();
+  if (!host || host === '*' || host.includes('*')) return [];
+  return [`https://${host}/*`, `http://${host}/*`];
+}
+
+async function grantedOriginOf(rule) {
+  if (!chrome.permissions) return '';
+  for (const pattern of originPatternsOf(rule)) {
+    try {
+      if (await chrome.permissions.contains({ origins: [pattern] })) return pattern;
+    } catch {
+      // 忽略
+    }
+  }
+  return '';
+}
+
+async function renderGuardState(rule, container) {
+  container.replaceChildren();
+  const granted = await grantedOriginOf(rule);
+  if (granted) {
+    container.append(el('span', 'rule-guard-text is-on', '弹窗守卫：已启用'));
+    return;
+  }
+
+  container.append(el('span', 'rule-guard-text', '弹窗守卫：未授权该站点'));
+  const button = el('button', 'rule-guard-btn', '授权并启用');
+  button.type = 'button';
+  button.title = '授予该站点的主机权限，扩展才能注入弹窗守卫';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      const patterns = originPatternsOf(rule);
+      if (!patterns.length) {
+        toast('这条规则没有可用的站点范围');
+        return;
+      }
+      const ok = await chrome.permissions.request({ origins: patterns });
+      if (!ok) {
+        toast('未授权，弹窗守卫不会生效');
+        return;
+      }
+      await injectGuardIntoTabs(rule);
+      toast('已启用弹窗守卫');
+      renderGuardState(rule, container);
+    } catch (error) {
+      toast('授权失败：' + (error && error.message ? error.message : '未知错误'));
+    } finally {
+      button.disabled = false;
+    }
+  });
+  container.append(button);
+}
+
+/** 把守卫立刻注入到已经打开的该站点页面 */
+async function injectGuardIntoTabs(rule) {
+  const patterns = originPatternsOf(rule);
+  const hosts = patterns.map((pattern) => pattern.replace(/^https?:\/\//, '').replace(/\/\*$/, ''));
+  const config = guardConfigOf(rule);
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.id == null || !tab.url) continue;
+    let host = '';
+    try {
+      host = new URL(tab.url).hostname;
+    } catch {
+      continue;
+    }
+    if (!hosts.some((name) => host === name || host.endsWith('.' + name))) continue;
+    try {
+      await injectGuard(tab.id, config);
+    } catch {
+      // 单个标签页失败不影响其它
+    }
   }
 }
 

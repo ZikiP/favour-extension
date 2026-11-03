@@ -120,24 +120,30 @@
 
 `title` 和 `cover` 是保留字段，会单独存；其余字段进入 `extras` 数组，在管理页和客户端按 `key` 展示。
 
-### 弹窗守卫（可选）
+### 弹窗守卫
 
-有些站点在开始播放时会弹广告窗。规则里加一段 `guard`，扩展就会在匹配页面上注入 `shared/popup-guard.js` 把这些弹窗挡掉——域名只写在规则里，代码中不写死任何站点。
+有些站点在开始播放时会弹广告窗。扩展会在**命中任意一条解析规则的站点**上注入 `shared/popup-guard.js`，把这些弹窗挡掉——域名只写在规则里，代码中不写死任何站点。
+
+规则里可以带一段 `guard` 做精确配置：
 
 ```json
 {
-  "guard": { "popPath": "/pop", "blockCrossOrigin": true }
+  "guard": { "popPath": "/pop", "blockCrossOrigin": true, "detectForeignUrlWrapper": true }
 }
 ```
 
 | 字段 | 含义 |
 | --- | --- |
 | `popPath` | 站点把广告包成同域跳板路径（如 `/pop?url=…`）时填它，命中即拦截；留空则不判断 |
-| `blockCrossOrigin` | 拦截脚本触发的跨域弹窗，默认 `true` |
+| `blockCrossOrigin` | 拦截跨域弹窗，默认 `true` |
+| `detectForeignUrlWrapper` | 启发式：同域跳转但参数里塞了外站绝对地址 → 当广告跳板拦掉，默认 `true` |
 
+- **没写 `guard` 也能用**：默认配置就是「拦跨域弹窗 + 广告跳板启发式」，所以老规则导入进来照样生效
+- 守卫靠动态注入，需要该站点的常驻主机权限（`activeTab` 只在点击当下有效）：
+  - 收藏时会顺手申请一次；
+  - 也可以在「更多 → 解析规则」里看到每条规则的守卫状态，点「授权并启用」当场授权并立刻注入到已打开的页面
 - 页面加载完成、切回标签页、扩展启动或更新后各补一次注入，重复注入不会重复挂钩
-- 守卫需要该站点的常驻主机权限（`activeTab` 只在点击当下有效），首次在该站点收藏时会请求一次「允许访问此站点」；拒绝也不影响收藏，只是不拦弹窗
-- 规则列表里带守卫的规则会标注「拦截弹窗」
+- 自测：`node tools/test-guard.mjs`
 
 `label` 类型支持多语言标签并存，站点改版时通常只需要补一条 `labels`。
 
@@ -189,9 +195,10 @@ manager/               管理页
   store.js             本地存储封装
   dom.js / meta.js / selectors.js / keys.js / actions.js
   styles/              样式
-shared/                公共模块：字段提取引擎、编号版本解析、弹窗守卫、白名单匹配、同步目标、备份句柄
+shared/                公共模块：字段提取引擎、编号版本解析、弹窗守卫（guard.js + popup-guard.js）、白名单匹配、同步目标、备份句柄
 icons/
 tools/make-icons.mjs   生成图标
+tools/test-guard.mjs   弹窗守卫自测（node 直接跑）
 ```
 
 ## 权限

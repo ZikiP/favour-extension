@@ -1,4 +1,5 @@
 import { isAllowed } from './shared/url-rules.js';
+import { guardConfigOf, injectGuard, originPatternOf, ruleMatchesUrl } from './shared/guard.js';
 import { codeOfItem, parseCode } from './shared/versions.js';
 import { readSyncTargets } from './shared/sync-targets.js';
 import { buildSyncBody, probeTargets, pushToTargets } from './background/phone-sync.js';
@@ -37,44 +38,20 @@ async function rememberTab(tab) {
 
 // ---- 页面弹窗守卫 ----
 // 域名只写在站点规则 JSON 里（本地导入，不进仓库），这里不认任何站点：
-// 规则带 guard 字段时，在页面加载完成后往主世界注入 shared/popup-guard.js。
+// 命中任意一条解析规则的站点，页面加载完成后都往主世界注入 shared/popup-guard.js。
+// 规则里可以带 guard 段做精确配置；没带就用默认配置（跨域弹窗 + 广告跳板启发式）。
 const guardApplied = new Map(); // tabId -> 已注入的 url
-
-function readGuardConfig(rule) {
-  const raw = rule && rule.guard;
-  if (!raw || typeof raw !== 'object') return null;
-  const popPath =
-    typeof raw.popPath === 'string' && raw.popPath.startsWith('/')
-      ? raw.popPath.replace(/\/+$/, '')
-      : '';
-  const blockCrossOrigin = raw.blockCrossOrigin !== false;
-  if (!popPath && !blockCrossOrigin) return null;
-  return { popPath, blockCrossOrigin };
-}
 
 async function applyAdGuard(tab) {
   if (!tab || tab.id == null || !isWebUrl(tab.url)) return;
   const parserRules = await getParserRules();
-  const rule = parserRules.find((entry) => readGuardConfig(entry) && isAllowed(tab.url, entry.matches));
-  const config = readGuardConfig(rule);
-  if (!config) return;
+  const rule = parserRules.find((entry) => ruleMatchesUrl(entry, tab.url));
+  if (!rule) return;
   if (guardApplied.get(tab.id) === tab.url) return;
 
   guardApplied.set(tab.id, tab.url);
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: 'MAIN',
-      func: (guard) => {
-        globalThis.__favourGuardConfig = guard;
-      },
-      args: [config],
-    });
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: 'MAIN',
-      files: ['shared/popup-guard.js'],
-    });
+    await injectGuard(tab.id, guardConfigOf(rule));
   } catch {
     // 没有该站点的主机权限时静默跳过，下次导航再试
     guardApplied.delete(tab.id);
@@ -85,28 +62,35 @@ chrome.tabs.onRemoved.addListener((tabId) => guardApplied.delete(tabId));
 
 // 守卫是动态注入的，需要该站点的常驻主机权限（activeTab 只在点击当下有效）。
 // 收藏时顺手申请一次，用户拒绝就静默跳过。
-function originPatternOf(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
-    return `${parsed.protocol}//${parsed.hostname}/*`;
-  } catch {
-    return '';
-  }
-}
-
 async function ensureGuardPermission(url) {
   if (!chrome.permissions) return;
   const parserRules = await getParserRules();
-  const rule = parserRules.find((entry) => readGuardConfig(entry) && isAllowed(url, entry.matches));
+  const rule = parserRules.find((entry) => ruleMatchesUrl(entry, url));
   if (!rule) return;
   const origin = originPatternOf(url);
   if (!origin) return;
   try {
     if (await chrome.permissions.contains({ origins: [origin] })) return;
-    await chrome.permissions.request({ origins: [origin] });
+    const granted = await chrome.permissions.request({ origins: [origin] });
+    if (granted) await applyGuardToOpenTabs(origin, rule);
   } catch {
     // 用户拒绝或没有手势上下文时忽略
+  }
+}
+
+// 刚拿到权限，把已经打开的同站点页面补上守卫
+async function applyGuardToOpenTabs(origin, rule) {
+  const config = guardConfigOf(rule);
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id == null || !isWebUrl(tab.url)) continue;
+      if (originPatternOf(tab.url) !== origin) continue;
+      guardApplied.set(tab.id, tab.url);
+      await injectGuard(tab.id, config);
+    }
+  } catch {
+    // 单个标签页失败不影响其它
   }
 }
 
