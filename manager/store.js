@@ -242,6 +242,18 @@ export async function upsert({ id, url, title, tags, extras = [], cover = '', so
   return 'added';
 }
 
+// 页面弹窗守卫的配置，随规则一起存。缺省（没有 guard）表示该站点不需要守卫。
+export function normalizeGuard(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const popPath =
+    typeof raw.popPath === 'string' && raw.popPath.trim().startsWith('/')
+      ? raw.popPath.trim().replace(/\/+$/, '')
+      : '';
+  const blockCrossOrigin = raw.blockCrossOrigin !== false;
+  if (!popPath && !blockCrossOrigin) return null;
+  return { popPath, blockCrossOrigin };
+}
+
 export function normalizeParserRule(raw) {
   if (!raw || typeof raw !== 'object') return null;
 
@@ -263,6 +275,8 @@ export function normalizeParserRule(raw) {
 
   if (!id || !name || !matches.length || !fields.length) return null;
 
+  const guard = normalizeGuard(raw.guard);
+
   return {
     id,
     name,
@@ -271,6 +285,7 @@ export function normalizeParserRule(raw) {
     searchUrl,
     matches,
     fields,
+    ...(guard ? { guard } : {}),
   };
 }
 

@@ -91,9 +91,14 @@ export function renderParserRules() {
   for (const rule of state.parserRules) {
     const row = el('div', 'rule-item');
     const info = el('div', 'parser-rule-info');
+    const guardNote = rule.guard ? ' · 拦截弹窗' : '';
     info.append(
       el('div', 'parser-rule-name', rule.name),
-      el('div', 'parser-rule-meta', `v${rule.version} · ${rule.matches.join(' · ')} · ${rule.fields.length} 个字段`),
+      el(
+        'div',
+        'parser-rule-meta',
+        `v${rule.version} · ${rule.matches.join(' · ')} · ${rule.fields.length} 个字段${guardNote}`,
+      ),
     );
 
     const remove = el('button', 'icon-btn is-danger');

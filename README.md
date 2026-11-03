@@ -120,6 +120,25 @@
 
 `title` 和 `cover` 是保留字段，会单独存；其余字段进入 `extras` 数组，在管理页和客户端按 `key` 展示。
 
+### 弹窗守卫（可选）
+
+有些站点在开始播放时会弹广告窗。规则里加一段 `guard`，扩展就会在匹配页面上注入 `shared/ad-guard.js` 把这些弹窗挡掉——域名只写在规则里，代码中不写死任何站点。
+
+```json
+{
+  "guard": { "popPath": "/pop", "blockCrossOrigin": true }
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `popPath` | 站点把广告包成同域跳板路径（如 `/pop?url=…`）时填它，命中即拦截；留空则不判断 |
+| `blockCrossOrigin` | 拦截脚本触发的跨域弹窗，默认 `true` |
+
+- 页面加载完成、切回标签页、扩展启动或更新后各补一次注入，重复注入不会重复挂钩
+- 守卫需要该站点的常驻主机权限（`activeTab` 只在点击当下有效），首次在该站点收藏时会请求一次「允许访问此站点」；拒绝也不影响收藏，只是不拦弹窗
+- 规则列表里带守卫的规则会标注「拦截弹窗」
+
 `label` 类型支持多语言标签并存，站点改版时通常只需要补一条 `labels`。
 
 ## 同步（可选）
@@ -170,7 +189,7 @@ manager/               管理页
   store.js             本地存储封装
   dom.js / meta.js / selectors.js / keys.js / actions.js
   styles/              样式
-shared/                公共模块：字段提取引擎、编号版本解析、白名单匹配、同步目标、备份句柄
+shared/                公共模块：字段提取引擎、编号版本解析、弹窗守卫、白名单匹配、同步目标、备份句柄
 icons/
 tools/make-icons.mjs   生成图标
 ```
@@ -180,7 +199,7 @@ tools/make-icons.mjs   生成图标
 | 权限 | 用途 |
 | --- | --- |
 | `storage` / `unlimitedStorage` | 保存收藏与规则，收藏量大时不至于写满配额 |
-| `scripting` / `activeTab` | 在用户主动操作时注入解析脚本 |
+| `scripting` / `activeTab` | 注入解析脚本与页面弹窗守卫（守卫按已授权的主机范围注入） |
 | `tabs` | 读取当前标签页地址以完成收藏 |
 | `contextMenus` / `notifications` | 右键收藏入口与保存提示 |
 | `alarms` | 每日备份与同步重试 |

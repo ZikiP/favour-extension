@@ -35,6 +35,81 @@ async function rememberTab(tab) {
   await chrome.storage.session.set({ lastTab: now });
 }
 
+// ---- 页面弹窗守卫 ----
+// 域名只写在站点规则 JSON 里（本地导入，不进仓库），这里不认任何站点：
+// 规则带 guard 字段时，在页面加载完成后往主世界注入 shared/ad-guard.js。
+const guardApplied = new Map(); // tabId -> 已注入的 url
+
+function readGuardConfig(rule) {
+  const raw = rule && rule.guard;
+  if (!raw || typeof raw !== 'object') return null;
+  const popPath =
+    typeof raw.popPath === 'string' && raw.popPath.startsWith('/')
+      ? raw.popPath.replace(/\/+$/, '')
+      : '';
+  const blockCrossOrigin = raw.blockCrossOrigin !== false;
+  if (!popPath && !blockCrossOrigin) return null;
+  return { popPath, blockCrossOrigin };
+}
+
+async function applyAdGuard(tab) {
+  if (!tab || tab.id == null || !isWebUrl(tab.url)) return;
+  const parserRules = await getParserRules();
+  const rule = parserRules.find((entry) => readGuardConfig(entry) && isAllowed(tab.url, entry.matches));
+  const config = readGuardConfig(rule);
+  if (!config) return;
+  if (guardApplied.get(tab.id) === tab.url) return;
+
+  guardApplied.set(tab.id, tab.url);
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: (guard) => {
+        globalThis.__favourGuardConfig = guard;
+      },
+      args: [config],
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      files: ['shared/ad-guard.js'],
+    });
+  } catch {
+    // 没有该站点的主机权限时静默跳过，下次导航再试
+    guardApplied.delete(tab.id);
+  }
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => guardApplied.delete(tabId));
+
+// 守卫是动态注入的，需要该站点的常驻主机权限（activeTab 只在点击当下有效）。
+// 收藏时顺手申请一次，用户拒绝就静默跳过。
+function originPatternOf(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return `${parsed.protocol}//${parsed.hostname}/*`;
+  } catch {
+    return '';
+  }
+}
+
+async function ensureGuardPermission(url) {
+  if (!chrome.permissions) return;
+  const parserRules = await getParserRules();
+  const rule = parserRules.find((entry) => readGuardConfig(entry) && isAllowed(url, entry.matches));
+  if (!rule) return;
+  const origin = originPatternOf(url);
+  if (!origin) return;
+  try {
+    if (await chrome.permissions.contains({ origins: [origin] })) return;
+    await chrome.permissions.request({ origins: [origin] });
+  } catch {
+    // 用户拒绝或没有手势上下文时忽略
+  }
+}
+
 async function openManager(blocked = null) {
   if (blocked) await chrome.storage.session.set({ pendingBlocked: blocked });
 
@@ -329,15 +404,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
-    await rememberTab(await chrome.tabs.get(tabId));
+    const tab = await chrome.tabs.get(tabId);
+    await rememberTab(tab);
+    // 切回来时补一次：标签页可能在扩展启动前就已经加载完
+    applyAdGuard(tab).catch(() => {});
   } catch {
     // tab closed before we could read it
   }
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete') applyAdGuard(tab).catch(() => {});
   if (!changeInfo.url && changeInfo.title === undefined) return;
   rememberTab(tab);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  chrome.tabs
+    .query({})
+    .then((tabs) => {
+      for (const tab of tabs) applyAdGuard(tab).catch(() => {});
+    })
+    .catch(() => {});
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -351,6 +439,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     return;
   }
 
+  await ensureGuardPermission(tab.url);
   await quickSave(tab);
 });
 
@@ -398,6 +487,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await openManager({ reason: 'not-in-range', url: target.url });
     return;
   }
+  await ensureGuardPermission(target.url);
   await quickSave(target);
 });
 
@@ -409,4 +499,11 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL(MANAGER_PATH) });
   }
+  // 安装或更新后，已经开着的页面也补一次守卫
+  chrome.tabs
+    .query({})
+    .then((tabs) => {
+      for (const tab of tabs) applyAdGuard(tab).catch(() => {});
+    })
+    .catch(() => {});
 });
