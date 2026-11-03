@@ -37,7 +37,7 @@ async function rememberTab(tab) {
 
 // ---- 页面弹窗守卫 ----
 // 域名只写在站点规则 JSON 里（本地导入，不进仓库），这里不认任何站点：
-// 规则带 guard 字段时，在页面加载完成后往主世界注入 shared/ad-guard.js。
+// 规则带 guard 字段时，在页面加载完成后往主世界注入 shared/popup-guard.js。
 const guardApplied = new Map(); // tabId -> 已注入的 url
 
 function readGuardConfig(rule) {
@@ -73,7 +73,7 @@ async function applyAdGuard(tab) {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: 'MAIN',
-      files: ['shared/ad-guard.js'],
+      files: ['shared/popup-guard.js'],
     });
   } catch {
     // 没有该站点的主机权限时静默跳过，下次导航再试
