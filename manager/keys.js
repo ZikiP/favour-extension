@@ -1,6 +1,7 @@
 import { els } from './dom.js';
+import { groupOfItem } from './groups.js';
 import { state } from './store.js';
-import { openItem, removeItem } from './items.js';
+import { openGroup, removeGroup } from './items.js';
 import { openDetail } from './detail.js';
 
 let cursor = -1;
@@ -29,16 +30,18 @@ export function bindListKeys() {
     if (!active) return;
     const item = state.items.find((entry) => entry.id === active.dataset.id);
     if (!item) return;
+    const group = groupOfItem(item);
+    if (!group) return;
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      openDetail(item);
+      openDetail(group);
     } else if (event.key === 'o' || event.key === 'O') {
       event.preventDefault();
-      openItem(item);
+      openGroup(group);
     } else if (event.key === 'Delete') {
       event.preventDefault();
-      removeItem(item);
+      removeGroup(group);
     }
   });
 }

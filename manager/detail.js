@@ -1,30 +1,59 @@
 import { els, el, hostOf, hueOf, initialOf, toast } from './dom.js';
+import { groupOfItem } from './groups.js';
 import { actressNames, relatedItems } from './selectors.js';
 import { extraValue, genresOf, previewUrl } from './meta.js';
 import { copyUrl, openItem, openRelocate, searchUrlFor } from './items.js';
 import { openEditor } from './editor.js';
 import { rescanItem } from './scrape.js';
+import { versionOf } from '../shared/versions.js';
 
 let current = null;
+let currentGroup = null;
 let ring = [];
 let ringIndex = 0;
 let noteTimer = 0;
+// 每部作品记住上次选的版本，关掉详情再打开还是那一版
+const pickedVersion = new Map();
 
-export function openDetail(item) {
+export function openDetail(target) {
+  const group = resolveGroup(target);
+  if (!group) return;
+  const item = selectedVersion(group);
   ring = [item, ...relatedItems(item)];
   ringIndex = 0;
-  showDetail(item);
+  showDetail(item, group);
 }
 
-function showDetail(item) {
+function resolveGroup(target) {
+  if (!target) return null;
+  if (Array.isArray(target.versions) && target.primary) return target;
+  return groupOfItem(target);
+}
+
+function selectedVersion(group) {
+  const wanted = group.key ? pickedVersion.get(group.key) : null;
+  const saved = wanted ? group.versions.find((entry) => entry.id === wanted) : null;
+  return saved || group.primary;
+}
+
+function showDetail(item, group = resolveGroup(item)) {
   current = item;
-  renderDetail(item);
+  currentGroup = group;
+  ring[ringIndex] = item;
+  renderDetail(item, group);
   if (!els.detailDialog.open) els.detailDialog.showModal();
   loadPreview(item);
 }
 
+function pickVersion(group, version) {
+  if (!group || !version || version.id === current?.id) return;
+  pickedVersion.set(group.key, version.id);
+  showDetail(version, group);
+}
+
 export function closeDetail() {
   current = null;
+  currentGroup = null;
   ring = [];
   ringIndex = 0;
   stopPreview();
@@ -78,6 +107,8 @@ export async function detailRescanItem() {
   try {
     const updated = await rescanItem(item);
     if (current === item) {
+      const group = groupOfItem(updated);
+      if (group) pickedVersion.set(group.key, updated.id);
       openDetail(updated);
       showDetailNote('已重新刮削');
     }
@@ -91,21 +122,60 @@ export async function detailRescanItem() {
   }
 }
 
-function renderDetail(item) {
+function renderDetail(item, group = currentGroup) {
   clearDetailError();
   clearDetailNote();
-  const code = extraValue(item, 'code');
+  // 番号只显示基础番号，版本由下面的选择器表达
+  const info = versionOf(item);
+  const code = info.base || extraValue(item, 'code');
   els.detailTitle.textContent = item.title || hostOf(item.url);
 
   els.detailCode.replaceChildren();
   if (code) els.detailCode.append(el('span', 'card-code', code));
 
+  renderVersions(item, group);
   renderCover(item, code);
   renderRows(item);
   renderDescription(item);
   renderGenres(item);
   renderRelated(item);
   els.detailRelocate.hidden = !searchUrlFor(item);
+  els.detailOpen.title = group && group.versions.length > 1
+    ? `在隐私页打开（${versionOf(item).label}）`
+    : '';
+}
+
+// 版本选择：多版本时列出全部，标出快捷播放会选中的那一版
+function renderVersions(item, group) {
+  const wrap = els.detailVersions;
+  if (!wrap) return;
+  wrap.replaceChildren();
+
+  const versions = group && Array.isArray(group.versions) ? group.versions : [];
+  const single = versions.length <= 1;
+  const info = versionOf(item);
+  wrap.hidden = !versions.length || (single && !info.versioned);
+  if (wrap.hidden) return;
+
+  for (const version of versions) {
+    const versionInfo = versionOf(version);
+    const active = version.id === item.id;
+    const button = el(
+      'button',
+      'detail-version'
+        + (active ? ' is-active' : '')
+        + (versionInfo.cnSub ? ' is-cn' : versionInfo.uncensored ? ' is-uncensored' : ''),
+    );
+    button.type = 'button';
+    button.title = `${versionInfo.label} · ${version.title || version.url}`;
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.append(el('span', 'detail-version-name', versionInfo.label));
+    if (version.id === group.primary.id && !single) {
+      button.append(el('span', 'detail-version-tag', '默认'));
+    }
+    button.addEventListener('click', () => pickVersion(group, version));
+    wrap.append(button);
+  }
 }
 
 function renderCover(item, code) {

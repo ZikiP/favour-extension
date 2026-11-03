@@ -1,20 +1,23 @@
 import { els, el, ICON, iconButton, fuzzyMatch, hostOf, hueOf, initialOf, matchesQuery } from './dom.js';
 import { state } from './store.js';
-import { actressStats, actressLabel, genreLabel, seriesLabel, sortItems, visibleItems } from './selectors.js';
+import { groupsOf, sortGroups, versionCount } from './groups.js';
+import { actressStats, actressLabel, genreLabel, seriesLabel, visibleItems } from './selectors.js';
 import { extraValue, genresOf } from './meta.js';
 import { ACTRESS_PAGE_SIZE, paginate, renderPager } from './pager.js';
 import { openEditor } from './editor.js';
 import { openDetail } from './detail.js';
 import { onAddCurrent } from './actions.js';
 import { openSettings } from './dialogs.js';
-import { openItem, removeItem, toggleFavoriteItem, toggleWatched } from './items.js';
+import { openGroup, removeGroup, toggleFavoriteGroup, toggleWatchedGroup } from './items.js';
 import { setActressOrder, toggleActressFavorite } from './actresses.js';
 import { toggleSelected } from './list-tools.js';
 import { render, renderMain, openActress, setView } from './views.js';
+import { versionOf } from '../shared/versions.js';
 
 export function renderLibrary() {
   const items = visibleItems();
-  const pageData = paginate(items);
+  const groups = sortGroups(groupsOf(items));
+  const pageData = paginate(groups);
   els.list.className = 'list';
   els.list.replaceChildren();
 
@@ -28,42 +31,50 @@ export function renderLibrary() {
           ? `系列 · ${seriesLabel(state.series)}`
           : '全部收藏';
   els.listTitle.textContent = state.query.trim() ? '搜索结果' : label;
-  els.listCount.textContent = `${items.length} 条`;
+  els.listCount.textContent = countLabel(groups);
   els.clearActress.hidden = !state.actress;
 
-  els.empty.hidden = items.length > 0;
-  if (!items.length) {
+  els.empty.hidden = groups.length > 0;
+  if (!groups.length) {
     renderPager({ total: 0, pages: 1, page: 1 });
     renderEmpty();
     return;
   }
-  for (const item of pageData.items) els.list.append(renderCard(item));
-  renderPager(pageData);
+  for (const group of pageData.items) els.list.append(renderCard(group));
+  renderPager(pageData, '部');
 }
 
 export function renderFavorites() {
-  const items = sortItems(
-    state.items
-      .filter((item) => item.favorite)
-      .filter((item) => matchesQuery(item, state.query)),
+  const groups = sortGroups(
+    groupsOf(
+      state.items
+        .filter((item) => item.favorite)
+        .filter((item) => matchesQuery(item, state.query)),
+    ),
   );
 
-  const pageData = paginate(items);
+  const pageData = paginate(groups);
   els.list.className = 'list';
   els.list.replaceChildren();
   els.listTitle.textContent = '最爱';
-  els.listCount.textContent = `${items.length} 件`;
+  els.listCount.textContent = countLabel(groups);
   els.clearActress.hidden = true;
 
-  els.empty.hidden = items.length > 0;
-  if (!items.length) {
-    renderPager({ total: 0, pages: 1, page: 1 }, '件');
+  els.empty.hidden = groups.length > 0;
+  if (!groups.length) {
+    renderPager({ total: 0, pages: 1, page: 1 }, '部');
     renderFavoritesEmpty();
     return;
   }
 
-  for (const item of pageData.items) els.list.append(renderCard(item));
-  renderPager(pageData, '件');
+  for (const group of pageData.items) els.list.append(renderCard(group));
+  renderPager(pageData, '部');
+}
+
+// 「12 部 · 15 个版本」——版本数和作品数一致时只显示作品数
+function countLabel(groups) {
+  const total = versionCount(groups);
+  return total > groups.length ? `${groups.length} 部 · ${total} 个版本` : `${groups.length} 部`;
 }
 
 export function renderActressView() {
@@ -156,37 +167,39 @@ function renderActressCard(stat) {
   return card;
 }
 
-function renderCard(item) {
+function renderCard(group) {
+  const item = group.primary;
   const extras = Array.isArray(item.extras) ? item.extras : [];
-  const code = extras.find((extra) => extra.key === 'code');
   const actress = extras.find((extra) => extra.key === 'actress');
   const releaseDate = extras.find((extra) => extra.key === 'releaseDate');
+  const multi = group.versions.length > 1;
 
   const card = el('article', 'card');
   card.dataset.id = item.id;
+  card.dataset.work = group.key;
   if (state.selecting && state.selected.has(item.id)) card.classList.add('is-selected');
 
   const link = el('button', 'card-hit');
   link.type = 'button';
-  link.setAttribute('aria-label', `查看 ${item.title || item.url} 的详情`);
+  link.setAttribute('aria-label', `查看 ${group.title || item.url} 的详情`);
   link.addEventListener('click', () => {
     if (state.selecting) {
       toggleSelected(item.id);
       return;
     }
-    openDetail(item);
+    openDetail(group);
   });
   card.append(link);
 
   const coverBox = el('div', 'card-cover');
   const fallback = el('div', 'cover-fallback');
-  fallback.style.setProperty('--h', hueOf(code ? code.value : hostOf(item.url)));
-  fallback.textContent = code ? code.value : initialOf(item.url);
+  fallback.style.setProperty('--h', hueOf(group.code || hostOf(item.url)));
+  fallback.textContent = group.code || initialOf(item.url);
   coverBox.append(fallback);
 
-  if (item.cover) {
+  if (group.cover) {
     const img = el('img', 'cover-img');
-    img.src = item.cover;
+    img.src = group.cover;
     img.alt = '';
     img.loading = 'lazy';
     img.decoding = 'async';
@@ -198,21 +211,24 @@ function renderCard(item) {
 
   const play = el('button', 'card-play');
   play.type = 'button';
-  play.title = '播放';
-  play.setAttribute('aria-label', `播放 ${item.title || item.url}`);
+  const preferredLabel = versionOf(item).label;
+  play.title = multi ? `播放（${preferredLabel}）` : '播放';
+  play.setAttribute('aria-label', multi
+    ? `播放 ${group.title || item.url}（${preferredLabel}）`
+    : `播放 ${group.title || item.url}`);
   play.innerHTML = ICON.play;
-  play.addEventListener('click', () => openItem(item));
+  play.addEventListener('click', () => openGroup(group));
   coverBox.append(play);
 
-  const favorite = el('button', 'card-fav' + (item.favorite ? ' is-fav' : ''));
+  const favorite = el('button', 'card-fav' + (group.favorite ? ' is-fav' : ''));
   favorite.type = 'button';
-  favorite.innerHTML = item.favorite ? ICON.heartOn : ICON.heart;
-  favorite.title = item.favorite ? '取消最爱' : '加入最爱';
-  favorite.setAttribute('aria-label', item.favorite ? '取消最爱' : '加入最爱');
-  favorite.setAttribute('aria-pressed', item.favorite ? 'true' : 'false');
+  favorite.innerHTML = group.favorite ? ICON.heartOn : ICON.heart;
+  favorite.title = group.favorite ? '取消最爱' : '加入最爱';
+  favorite.setAttribute('aria-label', group.favorite ? '取消最爱' : '加入最爱');
+  favorite.setAttribute('aria-pressed', group.favorite ? 'true' : 'false');
   favorite.addEventListener('click', (event) => {
     event.stopPropagation();
-    toggleFavoriteItem(item);
+    toggleFavoriteGroup(group);
   });
   coverBox.append(favorite);
 
@@ -220,7 +236,7 @@ function renderCard(item) {
     coverBox.append(el('div', 'card-date', releaseDate.value));
   }
 
-  if (item.watched) {
+  if (group.watched) {
     coverBox.append(el('div', 'card-watched', '已看'));
   }
 
@@ -230,11 +246,11 @@ function renderCard(item) {
 
   const body = el('div', 'card-body');
 
-  const runtime = extraValue(item, 'runtime');
-  if ((code && code.value) || runtime) {
+  // 卡片上只留番号：版本号、版本标签都放到详情页的版本选择里
+  if (group.code || group.runtime) {
     const codeRow = el('div', 'card-code-row');
-    if (code && code.value) codeRow.append(el('span', 'card-code', code.value));
-    if (runtime) codeRow.append(el('span', 'card-runtime', runtime));
+    if (group.code) codeRow.append(el('span', 'card-code', group.code));
+    if (group.runtime) codeRow.append(el('span', 'card-runtime', extraValue(item, 'runtime')));
     body.append(codeRow);
   }
 
@@ -250,15 +266,15 @@ function renderCard(item) {
     body.append(genreRow);
   }
 
-  const title = el('div', 'card-title', item.title || hostOf(item.url));
-  title.title = item.title || item.url;
+  const title = el('div', 'card-title', group.title || hostOf(item.url));
+  title.title = group.title || item.url;
   body.append(title);
 
   const actions = el('div', 'card-actions');
   actions.append(
-    iconButton(item.watched ? '标记为未看' : '标记为已看', ICON.eye, () => toggleWatched(item), item.watched ? 'is-on' : ''),
+    iconButton(group.watched ? '标记为未看' : '标记为已看', ICON.eye, () => toggleWatchedGroup(group), group.watched ? 'is-on' : ''),
     iconButton('编辑', ICON.pencil, () => openEditor({ item })),
-    iconButton('删除', ICON.trash, () => removeItem(item), 'is-danger'),
+    iconButton(multi ? '删除（含全部版本）' : '删除', ICON.trash, () => removeGroup(group), 'is-danger'),
   );
 
   card.append(coverBox, body, actions);

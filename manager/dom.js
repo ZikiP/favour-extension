@@ -133,6 +133,7 @@ export const els = {
   detailCover: $('#detailCover'),
   detailTitle: $('#detailTitle'),
   detailCode: $('#detailCode'),
+  detailVersions: $('#detailVersions'),
   detailMeta: $('#detailMeta'),
   detailDesc: $('#detailDesc'),
   detailGenres: $('#detailGenres'),

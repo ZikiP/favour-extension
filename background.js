@@ -1,4 +1,5 @@
 import { isAllowed } from './shared/url-rules.js';
+import { codeOfItem, parseCode } from './shared/versions.js';
 import { readSyncTargets } from './shared/sync-targets.js';
 import { buildSyncBody, probeTargets, pushToTargets } from './background/phone-sync.js';
 import { enrichActressAvatars } from './background/actress-avatars.js';
@@ -126,7 +127,9 @@ async function quickSave(tab) {
 }
 
 function showSaved(item, existed) {
-  const code = item.extras.find((extra) => extra.key === 'code');
+  // 番号带上版本标签，一眼看出收的是原版还是中文字幕 / 无码
+  const info = parseCode(codeOfItem(item));
+  const version = info.versioned ? `（${info.label}）` : '';
   const summary = item.extras
     .map((extra) => extra.value)
     .filter(Boolean)
@@ -141,7 +144,7 @@ function showSaved(item, existed) {
     .create(NOTIFICATION_ID, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: `已收藏${code ? ' ' + code.value : ''}${existed ? '（更新）' : ''}`,
+      title: `已收藏${info.base ? ' ' + info.base : ''}${version}${existed ? '（更新）' : ''}`,
       message: summary || item.title || '已保存到 Favour',
       buttons: [{ title: '打开管理页' }],
     })

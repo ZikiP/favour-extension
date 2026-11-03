@@ -1,10 +1,17 @@
 import { els, toast } from './dom.js';
+import { expandIds, groupsOf } from './groups.js';
 import { savePrefs, state } from './store.js';
 import { removeMany, setFavoriteMany, setWatchedMany } from './items.js';
 import { render, renderMain } from './views.js';
 
+// 选中的是一张卡片（一个作品），批量操作要展开成它的全部版本
 function selectedItems() {
-  return state.items.filter((item) => state.selected.has(item.id));
+  const wanted = new Set(expandIds([...state.selected]));
+  return state.items.filter((item) => wanted.has(item.id));
+}
+
+function selectedGroups() {
+  return groupsOf(state.items).filter((group) => state.selected.has(group.primary.id));
 }
 
 export function renderListTools() {
@@ -21,7 +28,10 @@ export function renderListTools() {
   if (!active) return;
 
   const items = selectedItems();
-  els.selectionCount.textContent = items.length ? `已选 ${items.length} 项` : '未选择';
+  const groups = selectedGroups();
+  els.selectionCount.textContent = groups.length
+    ? `已选 ${groups.length} 部${items.length > groups.length ? ` · ${items.length} 个版本` : ''}`
+    : '未选择';
   els.selectionDelete.disabled = !items.length;
   els.selectionFavorite.disabled = !items.length;
   els.selectionWatched.disabled = !items.length;
@@ -97,7 +107,7 @@ export async function watchedSelected() {
 }
 
 export async function deleteSelected() {
-  const ids = [...state.selected];
+  const ids = expandIds([...state.selected]);
   if (!ids.length) return;
   state.selecting = false;
   state.selected.clear();

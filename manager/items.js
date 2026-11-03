@@ -1,4 +1,5 @@
 import { hostOf, toast, truncate } from './dom.js';
+import { groupsOf } from './groups.js';
 import { keep, local, normalizeItems, state } from './store.js';
 import { isAllowed } from '../shared/url-rules.js';
 import { render } from './views.js';
@@ -24,16 +25,22 @@ export async function openItem(item) {
   await openPrivate(item.url);
 }
 
+// 卡片的播放按钮：一部作品有多版本时按优先级选版本（中文字幕 > 无码 > 原版）
+export async function openGroup(group) {
+  if (!group || !group.primary) return;
+  await openItem(group.primary);
+}
+
 export async function openRandom() {
-  const pool = state.items.filter((item) => item.id !== state.lastRandomId);
-  const candidates = pool.length ? pool : state.items;
+  const groups = groupsOf(state.items).filter((group) => group.key !== state.lastRandomId);
+  const candidates = groups.length ? groups : groupsOf(state.items);
   if (!candidates.length) {
     toast('还没有收藏，先收藏一个页面吧');
     return;
   }
   const pick = candidates[Math.floor(Math.random() * candidates.length)];
-  state.lastRandomId = pick.id;
-  await openItem(pick);
+  state.lastRandomId = pick.key;
+  await openGroup(pick);
 }
 
 export async function toggleFavoriteItem(item) {
@@ -52,6 +59,29 @@ export async function toggleWatched(item) {
   await keep(next);
   render();
   toast(item.watched ? '已标记为未看' : '已标记为已看');
+}
+
+// 最爱与已看按作品生效：点一次卡片，所有版本一起变
+export async function toggleFavoriteGroup(group) {
+  if (!group || !group.ids.length) return;
+  const ids = new Set(group.ids);
+  const favorite = !group.favorite;
+  await keep(state.items.map((entry) =>
+    ids.has(entry.id) ? { ...entry, favorite, updatedAt: Date.now() } : entry,
+  ));
+  render();
+  toast(favorite ? '已加入最爱' : '已取消最爱');
+}
+
+export async function toggleWatchedGroup(group) {
+  if (!group || !group.ids.length) return;
+  const ids = new Set(group.ids);
+  const watched = !group.watched;
+  await keep(state.items.map((entry) =>
+    ids.has(entry.id) ? { ...entry, watched, updatedAt: Date.now() } : entry,
+  ));
+  render();
+  toast(watched ? '已标记为已看' : '已标记为未看');
 }
 
 export async function setFavoriteMany(ids, favorite) {
@@ -92,6 +122,28 @@ export async function removeItem(item) {
     duration: 6000,
     onAction: async () => {
       await restoreItems([item]);
+      toast('已恢复收藏');
+    },
+  });
+}
+
+// 删除一张卡片 = 删掉这部作品的全部版本，撤销时一起恢复
+export async function removeGroup(group) {
+  if (!group || !group.ids.length) return;
+  const wanted = new Set(group.ids);
+  const removed = state.items.filter((entry) => wanted.has(entry.id));
+  if (!removed.length) return;
+
+  await keep(state.items.filter((entry) => !wanted.has(entry.id)));
+  render();
+
+  const name = group.code || truncate(group.title || hostOf(group.primary.url), 18);
+  const suffix = removed.length > 1 ? `（${removed.length} 个版本）` : '';
+  toast(`已删除「${name}」${suffix}`, {
+    label: '撤销',
+    duration: 6000,
+    onAction: async () => {
+      await restoreItems(removed);
       toast('已恢复收藏');
     },
   });

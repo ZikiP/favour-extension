@@ -1,4 +1,5 @@
 import { els, el, ICON, hueOf, scrollMainTop } from './dom.js';
+import { groupsOf } from './groups.js';
 import { savePrefs, state } from './store.js';
 import { actressLabel, actressStats, genreLabel, genreStats, seriesLabel, seriesStats } from './selectors.js';
 import { renderActressView, renderFavorites, renderLibrary } from './cards.js';
@@ -17,9 +18,10 @@ export function renderRangeNotice() {
 
 function renderTabs() {
   const stats = actressStats();
-  const favoriteCount = state.items.filter((item) => item.favorite).length;
+  const groups = groupsOf(state.items);
+  const favoriteCount = groups.filter((group) => group.favorite).length;
 
-  els.tabLibraryCount.textContent = String(state.items.length);
+  els.tabLibraryCount.textContent = String(groups.length);
   els.tabCollectionsCount.textContent = String(seriesStats().length);
   els.tabActressesCount.textContent = String(stats.length);
   els.tabFavoritesCount.textContent = String(favoriteCount);
@@ -96,11 +98,12 @@ export function openFilterDialog() {
 
 function renderSidebar() {
   const library = state.view === 'library';
-  const unwatched = state.items.filter((item) => !item.watched).length;
+  const groups = groupsOf(state.items);
+  const unwatched = groups.filter((group) => !group.watched).length;
   const plain = !state.watched && !state.genre && !state.series;
 
   els.sideNav.replaceChildren(
-    navRow({ label: '全部收藏', icon: ICON.grid, count: state.items.length, active: library && plain, onClick: setAll }),
+    navRow({ label: '全部收藏', icon: ICON.grid, count: groups.length, active: library && plain, onClick: setAll }),
     navRow({ label: '未看', icon: ICON.eye, count: unwatched, active: library && state.watched, onClick: setWatched }),
   );
 
