@@ -1,4 +1,5 @@
 import { baseActressName } from '../shared/names.js';
+import { normalizeBadgeConfig } from '../shared/badges.js';
 import { dedupeTags, toast } from './dom.js';
 
 export const local = chrome.storage.local;
@@ -276,6 +277,7 @@ export function normalizeParserRule(raw) {
   if (!id || !name || !matches.length || !fields.length) return null;
 
   const guard = normalizeGuard(raw.guard);
+  const badges = normalizeBadgeConfig(raw.badges);
 
   return {
     id,
@@ -286,6 +288,7 @@ export function normalizeParserRule(raw) {
     matches,
     fields,
     ...(guard ? { guard } : {}),
+    ...(badges ? { badges } : {}),
   };
 }
 

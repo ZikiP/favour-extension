@@ -1,6 +1,7 @@
 import { els, el, ICON, iconButton, toast } from './dom.js';
 import { state, local, normalizeParserRule } from './store.js';
 import { guardConfigOf, injectGuard } from '../shared/guard.js';
+import { badgeConfigOf, injectBadges } from '../shared/badges.js';
 import { normalizeRule } from '../shared/url-rules.js';
 import { render, renderRangeNotice } from './views.js';
 
@@ -93,12 +94,13 @@ export function renderParserRules() {
     const row = el('div', 'rule-item');
     const info = el('div', 'parser-rule-info');
     const guardNote = rule.guard ? ' · 已配置弹窗守卫' : '';
+    const badgeNote = rule.badges ? ' · 已配置收藏角标' : '';
     info.append(
       el('div', 'parser-rule-name', rule.name),
       el(
         'div',
         'parser-rule-meta',
-        `v${rule.version} · ${rule.matches.join(' · ')} · ${rule.fields.length} 个字段${guardNote}`,
+        `v${rule.version} · ${rule.matches.join(' · ')} · ${rule.fields.length} 个字段${guardNote}${badgeNote}`,
       ),
     );
 
@@ -121,11 +123,13 @@ export function renderParserRules() {
 
 /** 规则对应的主机权限（http / https 都可能用到） */
 function originPatternsOf(rule) {
-  const first = (rule.matches || [])[0];
-  if (!first) return [];
-  const host = String(first).split('/')[0].replace(/^\*\./, '').trim();
-  if (!host || host === '*' || host.includes('*')) return [];
-  return [`https://${host}/*`, `http://${host}/*`];
+  const hosts = new Set();
+  for (const match of rule.matches || []) {
+    const host = String(match).split('/')[0].replace(/^\*\./, '').trim();
+    if (!host || host === '*' || host.includes('*')) continue;
+    hosts.add(host);
+  }
+  return [...hosts].flatMap((host) => [`https://${host}/*`, `http://${host}/*`]);
 }
 
 async function grantedOriginOf(rule) {
@@ -144,14 +148,20 @@ async function renderGuardState(rule, container) {
   container.replaceChildren();
   const granted = await grantedOriginOf(rule);
   if (granted) {
-    container.append(el('span', 'rule-guard-text is-on', '弹窗守卫：已启用'));
+    container.append(
+      el(
+        'span',
+        'rule-guard-text is-on',
+        rule.badges ? '弹窗守卫与收藏角标：已启用' : '弹窗守卫：已启用',
+      ),
+    );
     return;
   }
 
-  container.append(el('span', 'rule-guard-text', '弹窗守卫：未授权该站点'));
+  container.append(el('span', 'rule-guard-text', '页面注入：未授权该站点'));
   const button = el('button', 'rule-guard-btn', '授权并启用');
   button.type = 'button';
-  button.title = '授予该站点的主机权限，扩展才能注入弹窗守卫';
+  button.title = '授予该站点的主机权限，扩展才能注入弹窗守卫和收藏角标';
   button.addEventListener('click', async () => {
     button.disabled = true;
     try {
@@ -162,11 +172,11 @@ async function renderGuardState(rule, container) {
       }
       const ok = await chrome.permissions.request({ origins: patterns });
       if (!ok) {
-        toast('未授权，弹窗守卫不会生效');
+        toast('未授权，页面注入不会生效');
         return;
       }
-      await injectGuardIntoTabs(rule);
-      toast('已启用弹窗守卫');
+      await injectAssistIntoTabs(rule);
+      toast(rule.badges ? '已启用弹窗守卫和收藏角标' : '已启用弹窗守卫');
       renderGuardState(rule, container);
     } catch (error) {
       toast('授权失败：' + (error && error.message ? error.message : '未知错误'));
@@ -177,11 +187,12 @@ async function renderGuardState(rule, container) {
   container.append(button);
 }
 
-/** 把守卫立刻注入到已经打开的该站点页面 */
-async function injectGuardIntoTabs(rule) {
+/** 把守卫和角标立刻注入到已经打开的该站点页面 */
+async function injectAssistIntoTabs(rule) {
   const patterns = originPatternsOf(rule);
   const hosts = patterns.map((pattern) => pattern.replace(/^https?:\/\//, '').replace(/\/\*$/, ''));
-  const config = guardConfigOf(rule);
+  const guardConfig = guardConfigOf(rule);
+  const badgeConfig = badgeConfigOf(rule);
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
     if (tab.id == null || !tab.url) continue;
@@ -193,7 +204,8 @@ async function injectGuardIntoTabs(rule) {
     }
     if (!hosts.some((name) => host === name || host.endsWith('.' + name))) continue;
     try {
-      await injectGuard(tab.id, config);
+      if (badgeConfig) await injectBadges(tab.id, badgeConfig);
+      await injectGuard(tab.id, guardConfig);
     } catch {
       // 单个标签页失败不影响其它
     }

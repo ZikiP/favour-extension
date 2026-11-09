@@ -1,5 +1,19 @@
 const SYNC_TIMEOUT_MS = 15000;
 
+/**
+ * 同步失败后的重试间隔（分钟）：1 → 3 → 10 → 30，之后放弃，
+ * 等下一次收藏变更或浏览器启动再试。用 alarms 而不是 setTimeout，
+ * MV3 的 service worker 随时会被杀，定时器活不过休眠。
+ */
+export const SYNC_RETRY_DELAYS_MINUTES = [1, 3, 10, 30];
+
+/** 第 attempt 次失败后该等多久；返回 null 表示不再重试。 */
+export function retryDelayMinutes(attempt) {
+  const index = Math.trunc(attempt) - 1;
+  if (index < 0) return null;
+  return SYNC_RETRY_DELAYS_MINUTES[index] ?? null;
+}
+
 export function buildSyncBody(items, meta = {}, now = Date.now()) {
   const avatars = meta && typeof meta.actressAvatars === 'object' && meta.actressAvatars
     ? meta.actressAvatars

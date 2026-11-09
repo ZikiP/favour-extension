@@ -52,7 +52,9 @@ function itemFromRaw(raw, url) {
       : null;
 
   return {
-    id: crypto.randomUUID(),
+    // 保留备份里的 id：播放器端按作品关联的字幕/进度都认这个 id，
+    // 重新生成会让恢复出来的收藏变成「新作品」
+    id: typeof raw.id === 'string' && raw.id ? raw.id : crypto.randomUUID(),
     url,
     title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : hostOf(url),
     tags,
@@ -63,7 +65,7 @@ function itemFromRaw(raw, url) {
     cover,
     source,
     createdAt: Number(raw.createdAt) || Date.now(),
-    updatedAt: Date.now(),
+    updatedAt: Number(raw.updatedAt) || Number(raw.createdAt) || Date.now(),
   };
 }
 

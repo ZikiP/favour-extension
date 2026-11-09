@@ -1,8 +1,10 @@
 import { isAllowed } from './shared/url-rules.js';
 import { guardConfigOf, injectGuard, originPatternOf, ruleMatchesUrl } from './shared/guard.js';
+import { badgeConfigOf, injectBadges } from './shared/badges.js';
+import { badgeStatuses } from './shared/badge-index.js';
 import { codeOfItem, parseCode } from './shared/versions.js';
 import { readSyncTargets } from './shared/sync-targets.js';
-import { buildSyncBody, probeTargets, pushToTargets } from './background/phone-sync.js';
+import { buildSyncBody, probeTargets, pushToTargets, retryDelayMinutes } from './background/phone-sync.js';
 import { enrichActressAvatars } from './background/actress-avatars.js';
 import { setupBackupSchedule } from './background/backup-schedule.js';
 
@@ -36,19 +38,29 @@ async function rememberTab(tab) {
   await chrome.storage.session.set({ lastTab: now });
 }
 
-// ---- 页面弹窗守卫 ----
+// ---- 页面辅助：弹窗守卫 + 收藏角标 ----
 // 域名只写在站点规则 JSON 里（本地导入，不进仓库），这里不认任何站点：
-// 命中任意一条解析规则的站点，页面加载完成后都往主世界注入 shared/popup-guard.js。
-// 规则里可以带 guard 段做精确配置；没带就用默认配置（跨域弹窗 + 广告跳板启发式）。
-const guardApplied = new Map(); // tabId -> 已注入的 url
+// 命中任意一条解析规则的站点，页面加载完成后都往主世界注入 shared/popup-guard.js；
+// 规则里带 badges 段时，再往隔离世界注入 shared/page-badges.js 画收藏角标。
+// 守卫可以用规则里的 guard 段做精确配置；没带就用默认配置。
+const guardApplied = new Map(); // tabId -> 已注入守卫的 url
 
-async function applyAdGuard(tab) {
+async function applySiteAssist(tab) {
   if (!tab || tab.id == null || !isWebUrl(tab.url)) return;
   const parserRules = await getParserRules();
   const rule = parserRules.find((entry) => ruleMatchesUrl(entry, tab.url));
   if (!rule) return;
-  if (guardApplied.get(tab.id) === tab.url) return;
 
+  const badgeConfig = badgeConfigOf(rule);
+  if (badgeConfig) {
+    try {
+      await injectBadges(tab.id, badgeConfig);
+    } catch {
+      // 没有该站点的主机权限时静默跳过，下次导航再试
+    }
+  }
+
+  if (guardApplied.get(tab.id) === tab.url) return;
   guardApplied.set(tab.id, tab.url);
   try {
     await injectGuard(tab.id, guardConfigOf(rule));
@@ -60,9 +72,9 @@ async function applyAdGuard(tab) {
 
 chrome.tabs.onRemoved.addListener((tabId) => guardApplied.delete(tabId));
 
-// 守卫是动态注入的，需要该站点的常驻主机权限（activeTab 只在点击当下有效）。
+// 守卫和角标都是动态注入的，需要该站点的常驻主机权限（activeTab 只在点击当下有效）。
 // 收藏时顺手申请一次，用户拒绝就静默跳过。
-async function ensureGuardPermission(url) {
+async function ensureSitePermission(url) {
   if (!chrome.permissions) return;
   const parserRules = await getParserRules();
   const rule = parserRules.find((entry) => ruleMatchesUrl(entry, url));
@@ -72,22 +84,24 @@ async function ensureGuardPermission(url) {
   try {
     if (await chrome.permissions.contains({ origins: [origin] })) return;
     const granted = await chrome.permissions.request({ origins: [origin] });
-    if (granted) await applyGuardToOpenTabs(origin, rule);
+    if (granted) await applyAssistToOpenTabs(origin, rule);
   } catch {
     // 用户拒绝或没有手势上下文时忽略
   }
 }
 
-// 刚拿到权限，把已经打开的同站点页面补上守卫
-async function applyGuardToOpenTabs(origin, rule) {
-  const config = guardConfigOf(rule);
+// 刚拿到权限，把已经打开的同站点页面补上守卫和角标
+async function applyAssistToOpenTabs(origin, rule) {
+  const guardConfig = guardConfigOf(rule);
+  const badgeConfig = badgeConfigOf(rule);
   try {
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
       if (tab.id == null || !isWebUrl(tab.url)) continue;
       if (originPatternOf(tab.url) !== origin) continue;
+      if (badgeConfig) await injectBadges(tab.id, badgeConfig).catch(() => {});
       guardApplied.set(tab.id, tab.url);
-      await injectGuard(tab.id, config);
+      await injectGuard(tab.id, guardConfig);
     }
   } catch {
     // 单个标签页失败不影响其它
@@ -180,6 +194,8 @@ async function quickSave(tab) {
   else items.unshift(item);
   await chrome.storage.local.set({ items });
 
+  // 页面里的角标脚本会自己监听收藏变化；没有注入过（比如刚授权）就当场补一次
+  applySiteAssist(tab).catch(() => {});
   showSaved(item, Boolean(existing));
   await enrichActressAvatars(tab, matchedRule, extras).catch(() => {});
   return item;
@@ -314,12 +330,45 @@ function syncNow() {
         await writeSyncStatus(status);
         return status;
       })
+      .then(async (status) => {
+        await handleSyncOutcome(status).catch(() => {});
+        return status;
+      })
       .finally(() => {
         syncPromise = null;
       });
   }
   return syncPromise;
 }
+
+const SYNC_RETRY_ALARM = 'favour-sync-retry';
+
+async function clearSyncRetry() {
+  await chrome.storage.local.remove('syncRetryAttempts');
+  await chrome.alarms.clear(SYNC_RETRY_ALARM);
+}
+
+// 失败后退避重试；成功或没配目标就清零。重试次数存 local，
+// service worker 被杀重启后也能接着上次的进度退避。
+async function handleSyncOutcome(status) {
+  if (status.ok || status.error === '未配置同步设备') {
+    await clearSyncRetry();
+    return;
+  }
+  const { syncRetryAttempts } = await chrome.storage.local.get('syncRetryAttempts');
+  const attempts = (Number(syncRetryAttempts) || 0) + 1;
+  const delay = retryDelayMinutes(attempts);
+  if (delay == null) {
+    await chrome.storage.local.remove('syncRetryAttempts');
+    return;
+  }
+  await chrome.storage.local.set({ syncRetryAttempts: attempts });
+  await chrome.alarms.create(SYNC_RETRY_ALARM, { delayInMinutes: delay });
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SYNC_RETRY_ALARM) syncNow();
+});
 
 function queueSync() {
   clearTimeout(syncTimer);
@@ -383,6 +432,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       );
     return true;
   }
+  if (message.type === 'favour.badge-status') {
+    badgeStatuses(message.urls)
+      .then((result) => sendResponse(result))
+      .catch(() => sendResponse({}));
+    return true;
+  }
   return undefined;
 });
 
@@ -391,14 +446,14 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
     const tab = await chrome.tabs.get(tabId);
     await rememberTab(tab);
     // 切回来时补一次：标签页可能在扩展启动前就已经加载完
-    applyAdGuard(tab).catch(() => {});
+    applySiteAssist(tab).catch(() => {});
   } catch {
     // tab closed before we could read it
   }
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete') applyAdGuard(tab).catch(() => {});
+  if (changeInfo.status === 'complete') applySiteAssist(tab).catch(() => {});
   if (!changeInfo.url && changeInfo.title === undefined) return;
   rememberTab(tab);
 });
@@ -407,7 +462,7 @@ chrome.runtime.onStartup.addListener(() => {
   chrome.tabs
     .query({})
     .then((tabs) => {
-      for (const tab of tabs) applyAdGuard(tab).catch(() => {});
+      for (const tab of tabs) applySiteAssist(tab).catch(() => {});
     })
     .catch(() => {});
 });
@@ -423,7 +478,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     return;
   }
 
-  await ensureGuardPermission(tab.url);
+  await ensureSitePermission(tab.url);
   await quickSave(tab);
 });
 
@@ -471,7 +526,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await openManager({ reason: 'not-in-range', url: target.url });
     return;
   }
-  await ensureGuardPermission(target.url);
+  await ensureSitePermission(target.url);
   await quickSave(target);
 });
 
@@ -487,7 +542,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.tabs
     .query({})
     .then((tabs) => {
-      for (const tab of tabs) applyAdGuard(tab).catch(() => {});
+      for (const tab of tabs) applySiteAssist(tab).catch(() => {});
     })
     .catch(() => {});
 });
